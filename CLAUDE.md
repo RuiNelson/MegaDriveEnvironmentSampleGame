@@ -65,4 +65,6 @@ cmake -S . -B build \
   `code.s` and `blobs.s` are generated build artifacts and must not be committed.
 - Never execute the `SAMPLE_FREESTANDING` branch of `memory/Memory.hpp` on the
   host; it dereferences the real 68000 address map directly.
+- Keep the shared game allocation-free. The cartridge intentionally provides no
+  `operator new/delete`, so use automatic or embedded fixed-capacity storage.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

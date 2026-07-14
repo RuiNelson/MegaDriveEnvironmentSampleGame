@@ -252,6 +252,11 @@ rendering and VBlank synchronization use the same addresses and commands. The
 PSG player writes to `$C00011`, which reaches emulated audio on PC and the chip
 on a real Mega Drive.
 
+The shared game performs no dynamic allocation. Its objects use automatic or
+embedded fixed-capacity storage, while constant palettes, text, and tiles stay
+in ROM. The cartridge deliberately provides no `operator new/delete`; accidental
+heap use therefore fails during linking instead of relying on a partial runtime.
+
 ## Shared controller reader
 
 `ControllerReader` is a small target-independent library built on

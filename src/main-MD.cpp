@@ -6,14 +6,9 @@
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
 #include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
 
-// A freestanding link has no allocator. These symbols only satisfy the virtual
-// destructor entries of the shared Memory interface; game objects live on the
-// cartridge stack and are never dynamically allocated.
-void operator delete(void *) noexcept {
-}
-
-void operator delete(void *, std::size_t) noexcept {
-}
+// The cartridge deliberately defines no operator new/delete. All game objects
+// have automatic or embedded storage, so accidental heap use fails at link time
+// instead of silently introducing an incomplete allocator.
 
 extern "C" void __cxa_pure_virtual() {
     // Reaching a pure virtual call indicates a fatal program error. With no OS
