@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Sample Game (MegaDriveEnvironment)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/mega_drive_environment_sample_game",
+            "args": [
+                "--debug"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build Sample Game (Debug)",
+            "terminal": "integrated",
+            "sourceLanguages": [
+                "cpp"
+            ],
+            "stopOnEntry": false
+        }
+    ]
+}

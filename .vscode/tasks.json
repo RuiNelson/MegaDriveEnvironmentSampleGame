@@ -1,0 +1,28 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Sample Game (Debug)",
+            "type": "shell",
+            "command": "${workspaceFolder}/build_pc.sh",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "BUILD_TYPE": "Debug"
+                }
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        }
+    ]
+}
