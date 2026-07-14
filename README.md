@@ -4,7 +4,8 @@ A tiny C++23 game showing how to build a new Sega Mega Drive project with
 [`MegaDriveEnvironment`](https://github.com/RuiNelson/MegaDriveEnvironment).
 
 Move the blue character with the D-pad (arrow keys in the default keyboard
-configuration), collect the yellow gems, and press A or Start to reset.
+configuration), collect the yellow gems, and avoid the red enemy that slowly
+chases you. A collision ends the game; press A or Start to restart.
 
 ## What the sample demonstrates
 
@@ -17,6 +18,9 @@ configuration), collect the yellow gems, and press A or Start to reset.
 - drawing Plane A/Plane B text and backgrounds;
 - updating linked entries in the sprite attribute table;
 - reading Player 1 through the memory-mapped controller ports;
+- modelling the player, collectible, enemy, collisions, and game session with
+  portable C++ objects shared by both targets;
+- playing SN76489 PSG effects through the memory-mapped sound port;
 - sharing one 24-bit memory API between the PC environment and real hardware;
 - generating and loading a raw 32-Mbit asset ROM;
 - compiling the C++ game to M68000 assembly and producing a bootable cartridge ROM.
@@ -236,10 +240,12 @@ backend. `HardwareMemory` must never be executed on the host.
 ctest --test-dir build --output-on-failure
 ```
 
-The cartridge target uses `HardwareMemory` and the same `ControllerReader` as
-the PC target. Its VDP startup, rendering loop, vectors, and interrupts are
-implemented explicitly for the real address map. Audio is not used by this
-small sample yet.
+The cartridge target uses `HardwareMemory`, the same `ControllerReader`, the
+same object-oriented game session, and the same PSG sound-effect player as the
+PC target. Its VDP startup, rendering loop, vectors, and interrupts are
+implemented explicitly for the real address map. The PSG player writes to the
+SN76489 port at `$C00011`, which is routed to emulated audio on PC and directly
+to the chip on a real Mega Drive.
 
 ## Shared controller reader
 
@@ -256,9 +262,14 @@ this library later without changing game code.
 ## Code tour
 
 - `src/main.cpp` parses the tiny host-side CLI and calls `boot()`.
-- `SampleGame` owns game state, input, collision, and the frame loop.
+- `SampleGame` owns the environment-specific frame loop and renderer.
+- `game/GameSession.hpp` contains the shared `Player`, `Enemy`, `Collectible`,
+  collision rules, scoring, and game-over state.
+- `audio/PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
+  gem, colliding with the enemy, and restarting.
 - `VdpUtils` contains the environment target's VDP operations.
-- `src/megadrive/CartridgeGame.cpp` is the freestanding real-hardware game entry point.
+- `src/megadrive/CartridgeGame.cpp` provides object-oriented real-hardware game
+  and VDP classes plus the freestanding entry point.
 - `megadrive/header.s` and `megadrive/main.s` are the hand-written assembly inputs.
 - `tools/build_megadrive_rom.py` builds and validates the real cartridge image.
 - `memory/Memory.hpp` is the platform-neutral memory contract.
@@ -266,5 +277,5 @@ this library later without changing game code.
 - `platform/megadrive_environment` and `platform/megadrive` contain the two
   memory implementations.
 
-Start by changing the tile patterns and palettes in `SampleGame.cpp`, then add
-new game state in `update()` and render it in `render()`.
+Start by changing shared rules in `GameSession`, then adapt only the two renderers
+when a feature needs new VDP presentation.

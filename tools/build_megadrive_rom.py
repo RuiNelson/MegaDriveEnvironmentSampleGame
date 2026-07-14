@@ -126,6 +126,8 @@ def generate_combined_cpp(output_path: Path, repository: Path) -> None:
     sources = (
         repository / "src" / "platform" / "megadrive" / "HardwareMemory.cpp",
         repository / "src" / "controllers" / "ControllerReader.cpp",
+        repository / "src" / "game" / "GameSession.cpp",
+        repository / "src" / "audio" / "PsgSoundEffects.cpp",
         repository / "src" / "megadrive" / "CartridgeGame.cpp",
     )
     lines = ["// Generated compilation unit. Do not edit.\n"]

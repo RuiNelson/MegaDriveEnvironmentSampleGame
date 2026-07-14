@@ -49,6 +49,14 @@ add_library(sample_controllers STATIC src/controllers/ControllerReader.cpp)
 target_include_directories(sample_controllers PUBLIC include)
 target_link_libraries(sample_controllers PUBLIC sample_memory_common)
 
+add_library(sample_gameplay STATIC src/game/GameSession.cpp)
+target_include_directories(sample_gameplay PUBLIC include)
+target_link_libraries(sample_gameplay PUBLIC sample_controllers)
+
+add_library(sample_audio STATIC src/audio/PsgSoundEffects.cpp)
+target_include_directories(sample_audio PUBLIC include)
+target_link_libraries(sample_audio PUBLIC sample_memory_common)
+
 set(SAMPLE_ASSET_ROM "${CMAKE_CURRENT_BINARY_DIR}/sample_game_assets.bin")
 set(SAMPLE_FONT_DATA
     "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
@@ -87,7 +95,8 @@ target_compile_definitions(mega_drive_environment_sample_game PRIVATE
     SAMPLE_ASSET_ROM_PATH="${SAMPLE_ASSET_ROM}"
 )
 target_link_libraries(mega_drive_environment_sample_game PRIVATE
-    sample_controllers
+    sample_audio
+    sample_gameplay
     sample_memory_megadrive_environment
 )
 
@@ -107,4 +116,12 @@ if(BUILD_TESTING)
     add_executable(sample_controller_reader_test tests/ControllerReaderTest.cpp)
     target_link_libraries(sample_controller_reader_test PRIVATE sample_controllers)
     add_test(NAME sample_controller_reader_test COMMAND sample_controller_reader_test)
+
+    add_executable(sample_game_session_test tests/GameSessionTest.cpp)
+    target_link_libraries(sample_game_session_test PRIVATE sample_gameplay)
+    add_test(NAME sample_game_session_test COMMAND sample_game_session_test)
+
+    add_executable(sample_psg_sound_effects_test tests/PsgSoundEffectsTest.cpp)
+    target_link_libraries(sample_psg_sound_effects_test PRIVATE sample_audio)
+    add_test(NAME sample_psg_sound_effects_test COMMAND sample_psg_sound_effects_test)
 endif()

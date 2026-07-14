@@ -1,6 +1,8 @@
 #pragma once
 
+#include "MegaDriveEnvironmentSampleGame/audio/PsgSoundEffects.hpp"
 #include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
+#include "MegaDriveEnvironmentSampleGame/game/GameSession.hpp"
 #include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
 #include "system/MegaDriveEnvironment.hpp"
 
@@ -21,23 +23,16 @@ class SampleGame final : public MegaDriveEnvironment {
     void update();
     void render();
     void waitForVBlank();
-    void moveGem();
-    void reset();
 
     std::string romPath_;
     unsigned frameLimit_ = 0;
     unsigned frameCount_ = 0;
     bool frameReady_ = false;
-    bool resetWasPressed_ = false;
 
     platform::megadrive_environment::EnvironmentMemory gameMemory_;
     controllers::ControllerReader player1Controller_;
-
-    int playerX_ = 40;
-    int playerY_ = 104;
-    int gemX_ = 240;
-    int gemY_ = 104;
-    unsigned score_ = 0;
+    game::GameSession session_;
+    audio::PsgSoundEffects soundEffects_;
 };
 
 } // namespace sample
