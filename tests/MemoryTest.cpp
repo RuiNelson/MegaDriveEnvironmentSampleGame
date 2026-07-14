@@ -1,4 +1,4 @@
-#include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
+#include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
 
 #include "system/memory/SystemMemory.hpp"
 
@@ -10,7 +10,7 @@
 
 int main() {
     SystemMemory systemMemory;
-    sample::platform::megadrive_environment::EnvironmentMemory memory{systemMemory};
+    sample::platform::PlatformMemory memory{systemMemory};
     constexpr sample::memory::Address base = sample::memory::kWorkRamStart;
 
     memory.write32(base, 0x12345678);

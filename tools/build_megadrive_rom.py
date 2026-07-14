@@ -125,7 +125,7 @@ def generate_blobs_assembly(output_path: Path, blob_path: Path) -> None:
 def generate_combined_cpp(output_path: Path, repository: Path) -> None:
     sources = (
         repository / "src" / "memory" / "Memory.cpp",
-        repository / "src" / "platform" / "megadrive" / "HardwareMemory.cpp",
+        repository / "src" / "platform" / "megadrive" / "PlatformMemory.cpp",
         repository / "src" / "controllers" / "ControllerReader.cpp",
         repository / "src" / "game" / "GameSession.cpp",
         repository / "src" / "audio" / "PsgSoundEffects.cpp",

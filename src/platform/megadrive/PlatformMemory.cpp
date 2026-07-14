@@ -1,11 +1,11 @@
 /**
- * @file HardwareMemory.cpp
+ * @file PlatformMemory.cpp
  * Volatile reads and writes against the real 68000's external address bus.
  */
 
-#include "MegaDriveEnvironmentSampleGame/platform/megadrive/HardwareMemory.hpp"
+#include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
 
-namespace sample::platform::megadrive {
+namespace sample::platform {
 namespace {
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -28,31 +28,31 @@ template <typename Value>
 
 } // namespace
 
-std::uint8_t HardwareMemory::read8(memory::Address address) noexcept {
+std::uint8_t PlatformMemory::read8(memory::Address address) noexcept {
     return bus<std::uint8_t>(address);
 }
 
-std::uint16_t HardwareMemory::read16(memory::Address address) noexcept {
+std::uint16_t PlatformMemory::read16(memory::Address address) noexcept {
     return bus<std::uint16_t>(address);
 }
 
-std::uint32_t HardwareMemory::read32(memory::Address address) noexcept {
+std::uint32_t PlatformMemory::read32(memory::Address address) noexcept {
     return bus<std::uint32_t>(address);
 }
 
-void HardwareMemory::write8(memory::Address address, std::uint8_t value) noexcept {
+void PlatformMemory::write8(memory::Address address, std::uint8_t value) noexcept {
     bus<std::uint8_t>(address) = value;
 }
 
-void HardwareMemory::write16(memory::Address address, std::uint16_t value) noexcept {
+void PlatformMemory::write16(memory::Address address, std::uint16_t value) noexcept {
     bus<std::uint16_t>(address) = value;
 }
 
-void HardwareMemory::write32(memory::Address address, std::uint32_t value) noexcept {
+void PlatformMemory::write32(memory::Address address, std::uint32_t value) noexcept {
     bus<std::uint32_t>(address) = value;
 }
 
-bool HardwareMemory::waitFor16(memory::Address address,
+bool PlatformMemory::waitFor16(memory::Address address,
                                std::uint16_t mask,
                                std::uint16_t expected) noexcept {
     // Resolve the volatile bus address once. Calling Memory::read16() here
@@ -64,4 +64,4 @@ bool HardwareMemory::waitFor16(memory::Address address,
     return true;
 }
 
-} // namespace sample::platform::megadrive
+} // namespace sample::platform

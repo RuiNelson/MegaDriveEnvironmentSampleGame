@@ -4,7 +4,7 @@
  */
 
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
-#include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
+#include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
 #include "config/controls/ControlsConfigUI.hpp"
 #include "system/MegaDriveEnvironment.hpp"
 
@@ -41,7 +41,7 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
 
     std::string romPath_;
     unsigned frameLimit_;
-    sample::platform::megadrive_environment::EnvironmentMemory gameMemory_;
+    sample::platform::PlatformMemory gameMemory_;
     sample::SampleGame game_;
 };
 

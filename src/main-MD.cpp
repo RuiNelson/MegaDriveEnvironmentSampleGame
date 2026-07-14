@@ -4,7 +4,7 @@
  */
 
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
-#include "MegaDriveEnvironmentSampleGame/platform/megadrive/HardwareMemory.hpp"
+#include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
 
 // A freestanding link has no allocator. These symbols only satisfy the virtual
 // destructor entries of the shared Memory interface; game objects live on the
@@ -24,7 +24,7 @@ extern "C" void __cxa_pure_virtual() {
 
 extern "C" [[noreturn]] void game_main() {
     // header.s transfers control here after setting the stack and hardware.
-    sample::platform::megadrive::HardwareMemory memory;
+    sample::platform::PlatformMemory memory;
     sample::SampleGame game{memory};
     game.run();
 

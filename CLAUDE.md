@@ -63,6 +63,6 @@ cmake -S . -B build \
   separate cartridge builder embeds its trailing tile blob in a bootable ROM.
 - Keep the hand-written vector table and Sega header in `megadrive/header.s`.
   `code.s` and `blobs.s` are generated build artifacts and must not be committed.
-- Never execute `HardwareMemory` on the host; it dereferences the real 68000
-  address map directly.
+- Never execute the Mega Drive `PlatformMemory.cpp` implementation on the host;
+  it dereferences the real 68000 address map directly.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

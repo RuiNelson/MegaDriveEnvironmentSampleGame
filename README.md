@@ -223,22 +223,21 @@ python3 tools/build_asset_rom.py \
 
 An alternative image can be selected with `--rom FILE`.
 
-## Two memory backends
+## One platform-memory API, two implementations
 
 Game code uses the common `memory::Memory` contract. It defines 8/16/32-bit
 big-endian access, 24-bit address normalization, block reads/writes, overlapping
 copies, fills, and masked waits on memory-mapped registers.
 
-- `EnvironmentMemory` forwards those operations to the thread-safe
-  `SystemMemory` owned by `MegaDriveEnvironment`. Register waits yield so the
-  emulated producer can progress and can be cancelled when the host closes the
-  game; VBlank specifically consumes the environment's VSync events.
-- `HardwareMemory` performs direct `volatile` reads and writes on the real
-  68000 address bus. It inherits the common busy-wait implementation used by
-  bare-metal code.
+- `platform/megadrive_environment/PlatformMemory.cpp` forwards operations to
+  the thread-safe `SystemMemory` owned by `MegaDriveEnvironment`. Register
+  waits yield, and VBlank consumes the environment's VSync events.
+- `platform/megadrive/PlatformMemory.cpp` performs direct `volatile` reads and
+  writes on the real 68000 address bus and busy-waits on hardware registers.
 
-The host build compiles both backends and runs tests against the environment
-backend. `HardwareMemory` must never be executed on the host.
+Both implement the single `platform/PlatformMemory.hpp` API. The target build
+selects the appropriate implementation; the real-hardware implementation must
+never be executed on the host.
 
 ```bash
 ctest --test-dir build --output-on-failure
@@ -258,13 +257,13 @@ ports at `$A10003/$A10005`, decodes the active-low three-button protocol, and
 returns a plain `ControllerState`.
 
 Both builds use this reader unchanged. On real hardware the same operations go
-through `HardwareMemory`, so controller logic does not need a second
+through the bare-metal `PlatformMemory`, so controller logic does not need a second
 implementation. Six-button controller negotiation can be added to this library
 later without changing game code.
 
 ## Code tour
 
-- `src/main-PC.cpp` parses the host CLI and supplies `EnvironmentMemory` to the
+- `src/main-PC.cpp` parses the host CLI and supplies `PlatformMemory` to the
   shared game before calling `boot()`.
 - `SampleGame` owns the single frame loop, input, audio and renderer used by
   both targets.
@@ -273,14 +272,14 @@ later without changing game code.
 - `audio/PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
   gem, colliding with the enemy, and restarting.
 - `VdpUtils` contains shared memory-mapped VDP operations.
-- `src/main-MD.cpp` only creates `HardwareMemory` and enters the
+- `src/main-MD.cpp` only creates the bare-metal `PlatformMemory` and enters the
   shared game through the freestanding entry point.
 - `megadrive/header.s` and `megadrive/main.s` are the hand-written assembly inputs.
 - `tools/build_megadrive_rom.py` builds and validates the real cartridge image.
 - `memory/Memory.hpp` is the platform-neutral memory contract.
 - `controllers/ControllerReader.hpp` decodes controllers through that contract.
-- `platform/megadrive_environment` and `platform/megadrive` contain the two
-  memory implementations.
+- `platform/PlatformMemory.hpp` declares the one platform-memory type;
+  `platform/megadrive_environment` and `platform/megadrive` implement it.
 
 New features belong in the shared game and renderer. Platform code should only
 change when memory access or target bootstrapping itself changes.
