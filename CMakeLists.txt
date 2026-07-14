@@ -95,7 +95,7 @@ else()
 endif()
 
 add_executable(mega_drive_environment_sample_game
-    src/main.cpp
+    src/main-PC.cpp
 )
 
 target_include_directories(mega_drive_environment_sample_game PRIVATE include)

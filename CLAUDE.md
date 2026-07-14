@@ -58,7 +58,7 @@ cmake -S . -B build \
 - Controller code must use `controllers/ControllerReader` and memory-mapped I/O,
   not SDL or `Controllers::getCurrentState()` directly.
 - Keep command-line processing dependency-free; extend the manual parser in
-  `src/main.cpp` instead of adding CLI11 or another argument library.
+  `src/main-PC.cpp` instead of adding CLI11 or another argument library.
 - `tools/build_asset_rom.py` owns the raw, headerless asset ROM layout. The
   separate cartridge builder embeds its trailing tile blob in a bootable ROM.
 - Keep the hand-written vector table and Sega header in `megadrive/header.s`.

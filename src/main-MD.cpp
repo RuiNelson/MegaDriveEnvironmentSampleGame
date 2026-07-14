@@ -1,5 +1,5 @@
 /**
- * @file CartridgeMain.cpp
+ * @file main-MD.cpp
  * Minimal freestanding bootstrap for the shared sample::SampleGame.
  */
 

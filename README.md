@@ -264,7 +264,7 @@ later without changing game code.
 
 ## Code tour
 
-- `src/main.cpp` parses the host CLI and supplies `EnvironmentMemory` to the
+- `src/main-PC.cpp` parses the host CLI and supplies `EnvironmentMemory` to the
   shared game before calling `boot()`.
 - `SampleGame` owns the single frame loop, input, audio and renderer used by
   both targets.
@@ -273,7 +273,7 @@ later without changing game code.
 - `audio/PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
   gem, colliding with the enemy, and restarting.
 - `VdpUtils` contains shared memory-mapped VDP operations.
-- `src/megadrive/CartridgeMain.cpp` only creates `HardwareMemory` and enters the
+- `src/main-MD.cpp` only creates `HardwareMemory` and enters the
   shared game through the freestanding entry point.
 - `megadrive/header.s` and `megadrive/main.s` are the hand-written assembly inputs.
 - `tools/build_megadrive_rom.py` builds and validates the real cartridge image.

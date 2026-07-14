@@ -1,5 +1,5 @@
 /**
- * @file main.cpp
+ * @file main-PC.cpp
  * Dependency-free command-line entry point for the PC executable.
  */
 
