@@ -10,8 +10,8 @@
 
 #include <SDL3/SDL.h>
 
-#if defined(SAMPLE_FREESTANDING)
-#error "Memory-PC.cpp must only be compiled for PC"
+#if !defined(PC) || defined(MEGADRIVE)
+#error "Memory-PC.cpp requires the PC target"
 #endif
 
 namespace sample::platform {

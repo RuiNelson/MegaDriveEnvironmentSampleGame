@@ -8,8 +8,8 @@
 
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 
-#if !defined(SAMPLE_FREESTANDING)
-#error "Memory-MD.cpp must only be compiled for real hardware"
+#if !defined(MEGADRIVE) || defined(PC)
+#error "Memory-MD.cpp requires the MEGADRIVE target"
 #endif
 
 namespace sample::memory {

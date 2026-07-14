@@ -56,6 +56,8 @@ cmake -S . -B build \
 - Keep public headers flat under `include/MegaDriveEnvironmentSampleGame/` and
   implementations flat under `src/`. Shared files have plain names; source
   files that only build for one target use the `-PC` or `-MD` suffix.
+- Build shared C++ with exactly one target definition: `PC` for
+  MegaDriveEnvironment or `MEGADRIVE` for real hardware.
 - Keep `Memory.hpp` as the single memory API and target declarations. Its two
   implementations are `src/Memory-PC.cpp` and `src/Memory-MD.cpp`.
 - Controller code must use `ControllerReader` and memory-mapped I/O,
@@ -66,7 +68,7 @@ cmake -S . -B build \
   separate real-hardware builder embeds its trailing tile blob in a bootable ROM.
 - Keep the hand-written vector table and Sega header in `megadrive/header.s`.
   `code.s` and `blobs.s` are generated build artifacts and must not be committed.
-- Never execute the `SAMPLE_FREESTANDING` branch of `Memory.hpp` on the
+- Never execute the `MEGADRIVE` branch of `Memory.hpp` on the
   host; it dereferences the real 68000 address map directly.
 - Keep the shared game allocation-free. The real-hardware build intentionally
   provides no `operator new/delete`, so use automatic or embedded

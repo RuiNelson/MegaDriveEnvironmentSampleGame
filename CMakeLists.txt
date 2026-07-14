@@ -33,6 +33,7 @@ add_library(sample_game STATIC
     src/VdpUtils.cpp
 )
 target_include_directories(sample_game PUBLIC include)
+target_compile_definitions(sample_game PUBLIC PC=1)
 
 add_library(sample_memory_pc STATIC
     src/Memory-PC.cpp

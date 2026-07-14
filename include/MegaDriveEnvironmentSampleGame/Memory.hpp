@@ -7,14 +7,14 @@
 
 #include "MegaDriveEnvironmentSampleGame/StdCompat.hpp"
 
-#if !defined(SAMPLE_FREESTANDING)
+#if defined(PC)
 class MegaDriveEnvironment;
 class SystemMemory;
 #endif
 
 namespace sample::memory {
 
-#if defined(SAMPLE_FREESTANDING)
+#if defined(MEGADRIVE)
 #if defined(__GNUC__) || defined(__clang__)
 #define SAMPLE_MEMORY_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
@@ -40,7 +40,7 @@ inline constexpr Address kWorkRamEnd = 0xFFFFFF;
  */
 class Memory {
   public:
-#if defined(SAMPLE_FREESTANDING)
+#if defined(MEGADRIVE)
     /** Bare-metal memory has no runtime state or virtual dispatch table. */
     Memory() noexcept = default;
     ~Memory() = default;
@@ -55,7 +55,7 @@ class Memory {
      * Performs one bus read. Multi-byte values use 68000 big-endian order.
      * Implementations preserve device side effects at mapped I/O ports.
      */
-#if defined(SAMPLE_FREESTANDING)
+#if defined(MEGADRIVE)
     SAMPLE_MEMORY_ALWAYS_INLINE std::uint8_t read8(Address address) const noexcept;
     SAMPLE_MEMORY_ALWAYS_INLINE std::uint16_t read16(Address address) const noexcept;
     SAMPLE_MEMORY_ALWAYS_INLINE std::uint32_t read32(Address address) const noexcept;
@@ -69,7 +69,7 @@ class Memory {
      * Performs one bus write. Callers keep word and long-word addresses even,
      * as required by a real 68000.
      */
-#if defined(SAMPLE_FREESTANDING)
+#if defined(MEGADRIVE)
     SAMPLE_MEMORY_ALWAYS_INLINE void write8(Address address, std::uint8_t value) const noexcept;
     SAMPLE_MEMORY_ALWAYS_INLINE void write16(Address address, std::uint16_t value) const noexcept;
     SAMPLE_MEMORY_ALWAYS_INLINE void write32(Address address, std::uint32_t value) const noexcept;
@@ -86,7 +86,7 @@ class Memory {
      * 68000. Host backends may override it to yield to emulated devices. A
      * return value of false means the host cancelled the wait.
      */
-#if defined(SAMPLE_FREESTANDING)
+#if defined(MEGADRIVE)
     SAMPLE_MEMORY_ALWAYS_INLINE bool waitFor16(Address address,
                                                std::uint16_t mask,
                                                std::uint16_t expected) const noexcept;
@@ -149,14 +149,14 @@ class Memory {
         return address & kAddressMask;
     }
 
-#if !defined(SAMPLE_FREESTANDING)
+#if defined(PC)
   protected:
     /** Only concrete target backends can construct the abstraction. */
     Memory() = default;
 #endif
 };
 
-#if defined(SAMPLE_FREESTANDING)
+#if defined(MEGADRIVE)
 #undef SAMPLE_MEMORY_ALWAYS_INLINE
 #endif
 
@@ -164,7 +164,7 @@ class Memory {
 
 namespace sample::platform {
 
-#if defined(SAMPLE_FREESTANDING)
+#if defined(MEGADRIVE)
 
 /** Zero-cost name for the stateless real-hardware memory implementation. */
 using PlatformMemory = memory::Memory;

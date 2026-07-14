@@ -242,9 +242,10 @@ copies, fills, and masked waits on memory-mapped registers.
   or helper subroutine around an individual 68000 bus instruction.
 
 `Memory.hpp` exposes the PC adapter in a host build and an alias to
-`memory::Memory` in a real-hardware build. `SAMPLE_FREESTANDING` selects the
-latter. `Memory-PC.cpp` implements cooperative emulation access;
-`Memory-MD.cpp` implements direct, always-inline 68000 access.
+`memory::Memory` in a real-hardware build. The build defines `MEGADRIVE` for
+real hardware and `PC` for MegaDriveEnvironment. `Memory-PC.cpp` implements
+cooperative emulation access; `Memory-MD.cpp` implements direct, always-inline
+68000 access. Defining both targets, or neither target, is a compile-time error.
 
 ```bash
 ctest --test-dir build --output-on-failure

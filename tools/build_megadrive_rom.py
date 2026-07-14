@@ -207,7 +207,7 @@ def build(args: argparse.Namespace) -> None:
             "-std=c++23",
             "-m68000",
             "-Os",
-            "-DSAMPLE_FREESTANDING=1",
+            "-DMEGADRIVE=1",
             "-ffreestanding",
             "-fno-exceptions",
             "-fno-rtti",
