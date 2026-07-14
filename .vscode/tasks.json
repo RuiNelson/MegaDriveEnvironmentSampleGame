@@ -8,7 +8,10 @@
             "options": {
                 "cwd": "${workspaceFolder}",
                 "env": {
-                    "BUILD_TYPE": "Debug"
+                    "BUILD_DIR": "${workspaceFolder}/build/vscode-debug",
+                    "BUILD_TYPE": "Debug",
+                    "CC": "/usr/bin/clang",
+                    "CXX": "/usr/bin/clang++"
                 }
             },
             "problemMatcher": [

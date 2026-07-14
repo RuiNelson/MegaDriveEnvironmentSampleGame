@@ -2,10 +2,24 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Sample Game (MegaDriveEnvironment)",
+            "name": "Sample Game (Debugger)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/mega_drive_environment_sample_game",
+            "program": "${workspaceFolder}/build/vscode-debug/mega_drive_environment_sample_game",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build Sample Game (Debug)",
+            "terminal": "integrated",
+            "sourceLanguages": [
+                "cpp"
+            ],
+            "stopOnEntry": false
+        },
+        {
+            "name": "Sample Game (Debugger + diagnostics)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/vscode-debug/mega_drive_environment_sample_game",
             "args": [
                 "--debug"
             ],
