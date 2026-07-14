@@ -74,20 +74,23 @@ class Collectible final : public Entity {
     std::uint16_t stepY_ = 64;
 };
 
-/** Autonomous 16x16 entity that slowly follows the player. */
+/** Autonomous 16x16 entity that follows the player and accelerates with gems. */
 class Enemy final : public Entity {
   public:
     /** Creates the enemy at its starting position. */
     Enemy();
 
-    /** Restores its position and movement cadence. */
+    /** Restores its position, movement progress, and initial speed. */
     void reset();
-    /** Moves at most one pixel per axis on every third frame. */
+    /** Adds a small permanent speed increase for the current round. */
+    void increaseSpeed();
+    /** Advances toward the player according to the fractional movement rate. */
     void chase(const Player &player);
 
   private:
-    /** Counts frames until the next chase step. */
-    std::uint8_t chaseFrame_ = 0;
+    /** Fixed-point progress and rate, measured in 1/24-pixel units. */
+    std::uint32_t chaseProgress_ = 0;
+    std::uint32_t speed_ = 8;
 };
 
 /** One-frame notifications emitted by GameSession::update(). */

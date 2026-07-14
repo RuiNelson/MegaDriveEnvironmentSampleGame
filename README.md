@@ -4,8 +4,9 @@ A tiny C++23 game showing how to build a new Sega Mega Drive project with
 [`MegaDriveEnvironment`](https://github.com/RuiNelson/MegaDriveEnvironment).
 
 Move the blue character with the D-pad (arrow keys in the default keyboard
-configuration), collect the yellow gems, and avoid the red enemy that slowly
-chases you. A collision ends the game; press A or Start to restart.
+configuration), collect the yellow gems, and avoid the red enemy. It becomes a
+little faster with every collected gem. A collision ends the game; press A or
+Start to restart.
 
 ## What the sample demonstrates
 

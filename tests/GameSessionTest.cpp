@@ -3,6 +3,29 @@
 #include <cassert>
 
 int main() {
+    // The base rate is 8/24 pixel per frame. Every acceleration adds exactly
+    // one more pixel of travel over a 24-frame window.
+    sample::game::Player pursuitTarget;
+    sample::game::Enemy baseEnemy;
+    sample::game::Enemy onceAcceleratedEnemy;
+    sample::game::Enemy twiceAcceleratedEnemy;
+    onceAcceleratedEnemy.increaseSpeed();
+    twiceAcceleratedEnemy.increaseSpeed();
+    twiceAcceleratedEnemy.increaseSpeed();
+    for (int frame = 0; frame < 24; ++frame) {
+        baseEnemy.chase(pursuitTarget);
+        onceAcceleratedEnemy.chase(pursuitTarget);
+        twiceAcceleratedEnemy.chase(pursuitTarget);
+    }
+    assert(baseEnemy.x() == 280);
+    assert(onceAcceleratedEnemy.x() == 279);
+    assert(twiceAcceleratedEnemy.x() == 278);
+    twiceAcceleratedEnemy.reset();
+    for (int frame = 0; frame < 24; ++frame) {
+        twiceAcceleratedEnemy.chase(pursuitTarget);
+    }
+    assert(twiceAcceleratedEnemy.x() == 280);
+
     sample::game::GameSession session;
     sample::controllers::ControllerState controls;
 

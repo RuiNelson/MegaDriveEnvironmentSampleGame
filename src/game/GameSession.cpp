@@ -14,6 +14,8 @@ constexpr int kHudHeight = 32;
 constexpr int kPlayerSize = 16;
 constexpr int kGemSize = 8;
 constexpr int kEnemySize = 16;
+constexpr std::uint32_t kEnemySpeedScale = 24;
+constexpr std::uint32_t kEnemyInitialSpeed = 8;
 
 } // namespace
 
@@ -104,20 +106,37 @@ Enemy::Enemy() : Entity(288, 184, kEnemySize, kEnemySize) {
 }
 
 void Enemy::reset() {
-    chaseFrame_ = 0;
+    chaseProgress_ = 0;
+    speed_ = kEnemyInitialSpeed;
     setPosition(288, 184);
 }
 
+void Enemy::increaseSpeed() {
+    // One unit is 1/24 pixel per frame. Unlike changing an integer frame
+    // interval, this makes every collected gem increase the movement rate.
+    ++speed_;
+}
+
 void Enemy::chase(const Player &player) {
-    ++chaseFrame_;
-    if (chaseFrame_ < 3) {
+    chaseProgress_ += speed_;
+
+    int stepCount = 0;
+    while (chaseProgress_ >= kEnemySpeedScale) {
+        chaseProgress_ -= kEnemySpeedScale;
+        ++stepCount;
+    }
+    if (stepCount == 0) {
         return;
     }
-    chaseFrame_ = 0;
 
-    // Each axis moves independently, so diagonal pursuit has the same cadence.
-    const int deltaX = player.x() > x() ? 1 : (player.x() < x() ? -1 : 0);
-    const int deltaY = player.y() > y() ? 1 : (player.y() < y() ? -1 : 0);
+    // Clamp each axis to the target so high accumulated speeds cannot overshoot
+    // the player. Diagonal pursuit has the same rate on both axes.
+    const int distanceX = player.x() - x();
+    const int distanceY = player.y() - y();
+    const int deltaX =
+        distanceX > stepCount ? stepCount : (distanceX < -stepCount ? -stepCount : distanceX);
+    const int deltaY =
+        distanceY > stepCount ? stepCount : (distanceY < -stepCount ? -stepCount : distanceY);
     move(deltaX, deltaY);
 }
 
@@ -162,6 +181,7 @@ Events GameSession::update(const controllers::ControllerState &controls) {
             score_ = 0;
         }
         gem_.moveToNextPosition();
+        enemy_.increaseSpeed();
         events.collectedGem_ = true;
     }
 
