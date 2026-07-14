@@ -252,10 +252,51 @@ rendering and VBlank synchronization use the same addresses and commands. The
 PSG player writes to `$C00011`, which reaches emulated audio on PC and the chip
 on a real Mega Drive.
 
-The shared game performs no dynamic allocation. Its objects use automatic or
-embedded fixed-capacity storage, while constant palettes, text, and tiles stay
-in ROM. The cartridge deliberately provides no `operator new/delete`; accidental
-heap use therefore fails during linking instead of relying on a partial runtime.
+## Memory management
+
+There are two separate ideas called "memory" in this project:
+
+- `memory::Memory` represents the Mega Drive address bus. Calls such as
+  `write16(0xC00004, value)` communicate with hardware; they do not allocate or
+  own C++ objects.
+- C++ object storage determines where the player, enemy, game session, and
+  temporary values live and who controls their lifetime.
+
+The shared game uses automatic ownership and performs no dynamic allocation.
+This means automatic storage rather than garbage collection: C++ creates each
+object when its owner is created and reclaims temporary stack storage when a
+function returns. `SampleGame` directly contains its controller, `GameSession`,
+and sound player; `GameSession` directly contains the player, gem, and enemy.
+Their lifetimes therefore follow their owners without calls to `new` or
+`delete`.
+
+On a real Mega Drive, `game_main()` creates `PlatformMemory` and `SampleGame` on
+the 68000 stack in Work RAM. Small function-local values use that same stack.
+Constant palettes, strings, executable code, and tile blobs remain in ROM, and
+VDP VRAM/CRAM are accessed through fixed hardware addresses. The cartridge has
+no heap allocator and deliberately provides no `operator new/delete`, so an
+accidental dynamic allocation fails during linking. The linker also rejects
+mutable global state that would require BSS initialization.
+
+The PC executable uses the same allocation-free game classes. Host-only
+infrastructure such as `MegaDriveEnvironment`, SDL, or the command-line ROM path
+may allocate internally, but it does not change ownership inside the shared
+game.
+
+When extending the game:
+
+- store a new game object directly as a member of its owner;
+- for a bounded collection, use a fixed-size member array plus an active count;
+- use references or pointers only as non-owning views whose owner outlives them;
+- keep large immutable assets in ROM rather than copying them into Work RAM;
+- avoid `new`, `delete`, `malloc`, `free`, `std::vector`, and `std::string` in
+  shared game code;
+- keep local buffers small because the cartridge has no stack-overflow guard.
+
+If a future game genuinely needs dynamic lifetimes, design one explicit,
+fixed-capacity pool or arena for both targets. Do not add an ad-hoc heap only to
+one platform, because that would make memory behaviour and failure modes differ
+between the PC build and the cartridge.
 
 ## Shared controller reader
 
