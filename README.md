@@ -233,17 +233,18 @@ Game code uses the common `memory::Memory` contract. It defines 8/16/32-bit
 big-endian access, 24-bit address normalization, block reads/writes, overlapping
 copies, fills, and masked waits on memory-mapped registers.
 
-- `platform/megadrive_environment/PlatformMemory.cpp` forwards operations to
+- `src/Memory-PC.cpp` forwards PC operations to
   the thread-safe `SystemMemory` owned by `MegaDriveEnvironment`. Register
   waits yield, and VBlank consumes the environment's VSync events.
-- In the real-hardware build, `memory/Memory.hpp` turns that same API into a
+- In the real-hardware build, `Memory.hpp` turns that same API into a
   concrete, stateless type. Its primitive `volatile` reads, writes, and masked
   busy-wait are forced inline, so there is no backend object, virtual dispatch,
   or helper subroutine around an individual 68000 bus instruction.
 
-`platform/PlatformMemory.hpp` exposes the PC adapter in a host build and an
-alias to `memory::Memory` in a real-hardware build. `SAMPLE_FREESTANDING` selects
-the latter; its direct address-map accesses must never execute on the host.
+`Memory.hpp` exposes the PC adapter in a host build and an alias to
+`memory::Memory` in a real-hardware build. `SAMPLE_FREESTANDING` selects the
+latter. `Memory-PC.cpp` implements cooperative emulation access;
+`Memory-MD.cpp` implements direct, always-inline 68000 access.
 
 ```bash
 ctest --test-dir build --output-on-failure
@@ -369,25 +370,27 @@ later without changing game code.
 
 ## Code tour
 
-- `src/main-PC.cpp` parses the host CLI and supplies `PlatformMemory` to the
-  shared game before calling `boot()`.
-- `SampleGame` owns the single frame loop, input, audio and renderer used by
+- `include/MegaDriveEnvironmentSampleGame/` contains one flat set of public
+  headers; namespaces provide the logical grouping without more directories.
+- `src/` contains all implementations. Unsuffixed files are shared unchanged
+  by both targets; target-only files end in `-PC.cpp` or `-MD.cpp`.
+- `src/main-PC.cpp` parses the host CLI and supplies the adapter implemented by
+  `src/Memory-PC.cpp` before calling `boot()`.
+- `src/main-MD.cpp` creates the zero-cost real-hardware `PlatformMemory` alias
+  and uses the direct bus primitives from `src/Memory-MD.cpp`.
+- `SampleGame` owns the single frame loop, input, audio, and renderer used by
   both targets.
-- `game/GameSession.hpp` contains the shared `Player`, `Enemy`, `Collectible`,
+- `GameSession.hpp` contains the shared `Player`, `Enemy`, `Collectible`,
   collision rules, scoring, and game-over state.
-- `audio/PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
+- `PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
   gem, colliding with the enemy, and restarting.
 - `VdpUtils` contains shared memory-mapped VDP operations.
-- `src/main-MD.cpp` only creates the bare-metal `PlatformMemory` and enters the
-  shared game through the freestanding entry point.
 - `megadrive/header.s` and `megadrive/main.s` are the hand-written assembly inputs.
 - `tools/build_megadrive_rom.py` builds and validates the ROM image for real
   hardware.
-- `memory/Memory.hpp` is the platform-neutral memory contract.
-- `controllers/ControllerReader.hpp` decodes controllers through that contract.
-- `platform/PlatformMemory.hpp` selects the host adapter or zero-cost
-  real-hardware alias; the real-hardware primitives themselves live inline in
-  `memory/Memory.hpp`.
+- `ControllerReader.hpp` decodes controllers through that contract.
+- `Memory.hpp` is the only memory header; `Memory-PC.cpp` and `Memory-MD.cpp`
+  provide the two target implementations.
 
 New features belong in the shared game and renderer. Platform code should only
 change when memory access or target bootstrapping itself changes.

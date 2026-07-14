@@ -5,7 +5,7 @@
  * Shared reader for standard three-button Mega Drive controllers.
  */
 
-#include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
+#include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 
 namespace sample::controllers {
 
@@ -59,7 +59,7 @@ class ControllerReader {
     /** Tests one active-low input bit. */
     [[nodiscard]] static bool pressed(std::uint8_t value, unsigned bit);
 
-    /** Bus backend shared by the PC and cartridge builds. */
+    /** Bus backend shared by the PC and real-hardware builds. */
     memory::Memory &memory_;
     /** Selected controller's memory-mapped data and direction registers. */
     memory::Address dataPort_;

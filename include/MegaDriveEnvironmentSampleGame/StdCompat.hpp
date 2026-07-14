@@ -1,12 +1,12 @@
 #pragma once
 
 /**
- * @file FreestandingStd.hpp
- * @brief Minimal standard-library compatibility layer for the cartridge build.
+ * @file StdCompat.hpp
+ * @brief Minimal standard-library compatibility layer for real hardware.
  *
  * The host target uses the normal C++ standard library. The freestanding
- * m68k-elf toolchain used by the cartridge target provides compiler intrinsic
- * integer types but no target C++ headers, so this file supplies only the
+ * m68k-elf toolchain used by the real-hardware target provides compiler
+ * intrinsic integer types but no target C++ headers, so this file supplies only the
  * handful of names needed by the shared game interfaces.
  *
  * This is deliberately not a general-purpose standard-library replacement.
@@ -16,7 +16,7 @@
 
 // The Homebrew m68k-elf compiler intentionally ships without a target C++
 // standard library. These are the small compiler-provided types needed by the
-// shared memory/controller headers when producing the cartridge binary.
+// shared memory/controller headers when producing the real-hardware ROM.
 namespace std {
 
 using uint8_t = __UINT8_TYPE__;

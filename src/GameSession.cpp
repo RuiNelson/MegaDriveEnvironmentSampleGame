@@ -3,7 +3,7 @@
  * Deterministic, allocation-free game simulation shared by both targets.
  */
 
-#include "MegaDriveEnvironmentSampleGame/game/GameSession.hpp"
+#include "MegaDriveEnvironmentSampleGame/GameSession.hpp"
 
 namespace sample::game {
 namespace {

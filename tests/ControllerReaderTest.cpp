@@ -1,4 +1,4 @@
-#include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
+#include "MegaDriveEnvironmentSampleGame/ControllerReader.hpp"
 
 #include <cassert>
 #include <cstdint>

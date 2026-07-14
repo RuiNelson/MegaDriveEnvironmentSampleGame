@@ -5,10 +5,10 @@
  * Complete platform-independent sample game.
  */
 
-#include "MegaDriveEnvironmentSampleGame/audio/PsgSoundEffects.hpp"
-#include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
-#include "MegaDriveEnvironmentSampleGame/game/GameSession.hpp"
-#include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
+#include "MegaDriveEnvironmentSampleGame/ControllerReader.hpp"
+#include "MegaDriveEnvironmentSampleGame/GameSession.hpp"
+#include "MegaDriveEnvironmentSampleGame/Memory.hpp"
+#include "MegaDriveEnvironmentSampleGame/PsgSoundEffects.hpp"
 
 namespace sample {
 
@@ -17,7 +17,7 @@ namespace sample {
  *
  * All hardware communication goes through memory::Memory. The exact same class
  * and implementation are therefore compiled for MegaDriveEnvironment and for
- * the real 68000 cartridge; only the injected Memory implementation changes.
+ * real hardware; only the injected Memory implementation changes.
  */
 class SampleGame final {
   public:

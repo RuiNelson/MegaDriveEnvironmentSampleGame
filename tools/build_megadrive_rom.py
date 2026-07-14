@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and validate the bootable 32-Mbit Mega Drive cartridge ROM."""
+"""Build and validate the bootable 32-Mbit Mega Drive ROM for real hardware."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def validate_rom(rom_path: Path, asset_rom_path: Path) -> dict[str, int]:
     if int.from_bytes(rom[0x1A0:0x1A4], "big") != 0:
         raise RuntimeError("ROM start field is not zero")
     if int.from_bytes(rom[0x1A4:0x1A8], "big") != ROM_SIZE - 1:
-        raise RuntimeError("ROM end field does not describe a 32-Mbit cartridge")
+        raise RuntimeError("ROM end field does not describe a 32-Mbit ROM")
     if stored_checksum != calculated_checksum:
         raise RuntimeError(
             f"checksum mismatch: header=0x{stored_checksum:04X}, "
@@ -124,10 +124,10 @@ def generate_blobs_assembly(output_path: Path, blob_path: Path) -> None:
 
 def generate_combined_cpp(output_path: Path, repository: Path) -> None:
     sources = (
-        repository / "src" / "memory" / "Memory.cpp",
-        repository / "src" / "controllers" / "ControllerReader.cpp",
-        repository / "src" / "game" / "GameSession.cpp",
-        repository / "src" / "audio" / "PsgSoundEffects.cpp",
+        repository / "src" / "Memory-MD.cpp",
+        repository / "src" / "ControllerReader.cpp",
+        repository / "src" / "GameSession.cpp",
+        repository / "src" / "PsgSoundEffects.cpp",
         repository / "src" / "VdpUtils.cpp",
         repository / "src" / "SampleGame.cpp",
         repository / "src" / "main-MD.cpp",
@@ -187,7 +187,7 @@ def build(args: argparse.Namespace) -> None:
 
     expected_tiles = build_tile_data(args.font_data.resolve())
     if asset_rom.read_bytes()[TILE_DATA_OFFSET:] != expected_tiles:
-        raise RuntimeError("asset ROM verification failed before cartridge build")
+        raise RuntimeError("asset ROM verification failed before real-hardware build")
 
     combined_cpp = generated_dir / "code.cpp"
     code_assembly = generated_dir / "code.s"
@@ -311,7 +311,7 @@ def parse_args() -> argparse.Namespace:
         "--output",
         type=Path,
         default=repository / "build" / "megadrive" / "MegaDriveEnvironmentSampleGame.bin",
-        help="final bootable cartridge ROM",
+        help="final bootable ROM for real hardware",
     )
     parser.add_argument(
         "--font-data",

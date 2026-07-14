@@ -3,7 +3,7 @@
  * Two-phase TH protocol for the Mega Drive's controller I/O ports.
  */
 
-#include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
+#include "MegaDriveEnvironmentSampleGame/ControllerReader.hpp"
 
 namespace sample::controllers {
 namespace {

@@ -5,7 +5,7 @@
  * @brief Portable, frame-driven SN76489 sound-effect sequencer.
  */
 
-#include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
+#include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 
 namespace sample::audio {
 

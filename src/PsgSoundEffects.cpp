@@ -3,7 +3,7 @@
  * Frame-timed command sequences for the Mega Drive's SN76489-compatible PSG.
  */
 
-#include "MegaDriveEnvironmentSampleGame/audio/PsgSoundEffects.hpp"
+#include "MegaDriveEnvironmentSampleGame/PsgSoundEffects.hpp"
 
 namespace sample::audio {
 namespace {

@@ -1,4 +1,4 @@
-#include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
+#include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 
 #include "system/memory/SystemMemory.hpp"
 

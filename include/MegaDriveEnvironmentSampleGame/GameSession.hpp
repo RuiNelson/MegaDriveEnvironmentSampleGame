@@ -8,7 +8,7 @@
  * The first 32 vertical pixels are reserved for the HUD.
  */
 
-#include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
+#include "MegaDriveEnvironmentSampleGame/ControllerReader.hpp"
 
 namespace sample::game {
 

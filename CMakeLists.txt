@@ -25,39 +25,22 @@ add_subdirectory(
     "${CMAKE_BINARY_DIR}/MegaDriveEnvironment"
 )
 
-add_library(sample_memory_common STATIC src/memory/Memory.cpp)
-target_include_directories(sample_memory_common PUBLIC include)
-
-add_library(sample_memory_megadrive_environment STATIC
-    src/platform/megadrive_environment/PlatformMemory.cpp
-)
-target_include_directories(sample_memory_megadrive_environment PUBLIC include)
-target_link_libraries(sample_memory_megadrive_environment PUBLIC
-    sample_memory_common
-    MegaDriveEnvironment::MegaDriveEnvironment
-)
-
-add_library(sample_controllers STATIC src/controllers/ControllerReader.cpp)
-target_include_directories(sample_controllers PUBLIC include)
-target_link_libraries(sample_controllers PUBLIC sample_memory_common)
-
-add_library(sample_gameplay STATIC src/game/GameSession.cpp)
-target_include_directories(sample_gameplay PUBLIC include)
-target_link_libraries(sample_gameplay PUBLIC sample_controllers)
-
-add_library(sample_audio STATIC src/audio/PsgSoundEffects.cpp)
-target_include_directories(sample_audio PUBLIC include)
-target_link_libraries(sample_audio PUBLIC sample_memory_common)
-
 add_library(sample_game STATIC
+    src/ControllerReader.cpp
+    src/GameSession.cpp
+    src/PsgSoundEffects.cpp
     src/SampleGame.cpp
     src/VdpUtils.cpp
 )
 target_include_directories(sample_game PUBLIC include)
-target_link_libraries(sample_game PUBLIC
-    sample_audio
-    sample_gameplay
-    sample_memory_common
+
+add_library(sample_memory_pc STATIC
+    src/Memory-PC.cpp
+)
+target_include_directories(sample_memory_pc PUBLIC include)
+target_link_libraries(sample_memory_pc PUBLIC
+    sample_game
+    MegaDriveEnvironment::MegaDriveEnvironment
 )
 
 set(SAMPLE_ASSET_ROM "${CMAKE_CURRENT_BINARY_DIR}/sample_game_assets.bin")
@@ -96,8 +79,7 @@ target_compile_definitions(mega_drive_environment_sample_game PRIVATE
     SAMPLE_ASSET_ROM_PATH="${SAMPLE_ASSET_ROM}"
 )
 target_link_libraries(mega_drive_environment_sample_game PRIVATE
-    sample_game
-    sample_memory_megadrive_environment
+    sample_memory_pc
 )
 
 include(CTest)
@@ -110,18 +92,18 @@ if(BUILD_TESTING)
     )
 
     add_executable(sample_memory_test tests/MemoryTest.cpp)
-    target_link_libraries(sample_memory_test PRIVATE sample_memory_megadrive_environment)
+    target_link_libraries(sample_memory_test PRIVATE sample_memory_pc)
     add_test(NAME sample_memory_test COMMAND sample_memory_test)
 
     add_executable(sample_controller_reader_test tests/ControllerReaderTest.cpp)
-    target_link_libraries(sample_controller_reader_test PRIVATE sample_controllers)
+    target_link_libraries(sample_controller_reader_test PRIVATE sample_game)
     add_test(NAME sample_controller_reader_test COMMAND sample_controller_reader_test)
 
     add_executable(sample_game_session_test tests/GameSessionTest.cpp)
-    target_link_libraries(sample_game_session_test PRIVATE sample_gameplay)
+    target_link_libraries(sample_game_session_test PRIVATE sample_game)
     add_test(NAME sample_game_session_test COMMAND sample_game_session_test)
 
     add_executable(sample_psg_sound_effects_test tests/PsgSoundEffectsTest.cpp)
-    target_link_libraries(sample_psg_sound_effects_test PRIVATE sample_audio)
+    target_link_libraries(sample_psg_sound_effects_test PRIVATE sample_game)
     add_test(NAME sample_psg_sound_effects_test COMMAND sample_psg_sound_effects_test)
 endif()

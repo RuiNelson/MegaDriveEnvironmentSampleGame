@@ -1,4 +1,4 @@
-#include "MegaDriveEnvironmentSampleGame/game/GameSession.hpp"
+#include "MegaDriveEnvironmentSampleGame/GameSession.hpp"
 
 #include <cassert>
 

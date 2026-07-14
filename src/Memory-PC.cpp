@@ -1,14 +1,18 @@
 /**
- * @file PlatformMemory.cpp
+ * @file Memory-PC.cpp
  * Delegation from the sample memory API to MegaDriveEnvironment SystemMemory.
  */
 
-#include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
+#include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 
 #include "system/MegaDriveEnvironment.hpp"
 #include "system/memory/SystemMemory.hpp"
 
 #include <SDL3/SDL.h>
+
+#if defined(SAMPLE_FREESTANDING)
+#error "Memory-PC.cpp must only be compiled for PC"
+#endif
 
 namespace sample::platform {
 

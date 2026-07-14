@@ -1,6 +1,6 @@
 /**
  * @file SampleGame.cpp
- * Complete game implementation shared by PC and cartridge builds.
+ * Complete game implementation shared by PC and real-hardware builds.
  */
 
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"

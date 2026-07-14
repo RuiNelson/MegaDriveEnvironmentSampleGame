@@ -1,4 +1,4 @@
-#include "MegaDriveEnvironmentSampleGame/audio/PsgSoundEffects.hpp"
+#include "MegaDriveEnvironmentSampleGame/PsgSoundEffects.hpp"
 
 #include <array>
 #include <cassert>

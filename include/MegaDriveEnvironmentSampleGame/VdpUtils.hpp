@@ -4,12 +4,12 @@
  * @file VdpUtils.hpp
  * Target-independent VDP operations implemented through memory-mapped I/O.
  *
- * Both MegaDriveEnvironment and the real console expose the VDP at the same
+ * Both MegaDriveEnvironment and real hardware expose the VDP at the same
  * 68000 addresses. Consequently, this renderer depends only on memory::Memory;
  * the selected memory backend is the sole platform-specific implementation.
  */
 
-#include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
+#include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 
 namespace sample::vdp {
 

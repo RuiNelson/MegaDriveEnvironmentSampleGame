@@ -7,7 +7,7 @@ Guidance for agents working in `MegaDriveEnvironmentSampleGame`.
 This repository is a deliberately small dual-target game for the local
 `MegaDriveEnvironment` and real Mega Drive hardware. Keep the shared game code
 portable and the target-specific implementations explicit. The environment
-target and the bootable cartridge ROM both demonstrate VDP setup, controller
+target and the bootable ROM for real hardware both demonstrate VDP setup, controller
 input, game state, sprites, and text.
 
 ## Build
@@ -35,7 +35,7 @@ Build the real Mega Drive ROM with:
 ./build_megadrive.sh
 ```
 
-The cartridge pipeline requires `vasmm68k_std` plus the `m68k-elf` GCC and
+The real-hardware pipeline requires `vasmm68k_std` plus the `m68k-elf` GCC and
 binutils tools. `tools/build_megadrive_rom.py` owns the compilation, assembly,
 link, checksum, and structural validation steps.
 
@@ -53,18 +53,22 @@ cmake -S . -B build \
 - All runtime hardware access from shared game code must go through
   `memory::Memory`. Platform implementations may differ in access and waiting:
   real hardware busy-waits, while MegaDriveEnvironment yields cooperatively.
-- Keep shared platform contracts under `memory/` and target implementations
-  under `platform/megadrive_environment/` or `platform/megadrive/`.
-- Controller code must use `controllers/ControllerReader` and memory-mapped I/O,
+- Keep public headers flat under `include/MegaDriveEnvironmentSampleGame/` and
+  implementations flat under `src/`. Shared files have plain names; source
+  files that only build for one target use the `-PC` or `-MD` suffix.
+- Keep `Memory.hpp` as the single memory API and target declarations. Its two
+  implementations are `src/Memory-PC.cpp` and `src/Memory-MD.cpp`.
+- Controller code must use `ControllerReader` and memory-mapped I/O,
   not SDL or `Controllers::getCurrentState()` directly.
 - Keep command-line processing dependency-free; extend the manual parser in
   `src/main-PC.cpp` instead of adding CLI11 or another argument library.
 - `tools/build_asset_rom.py` owns the raw, headerless asset ROM layout. The
-  separate cartridge builder embeds its trailing tile blob in a bootable ROM.
+  separate real-hardware builder embeds its trailing tile blob in a bootable ROM.
 - Keep the hand-written vector table and Sega header in `megadrive/header.s`.
   `code.s` and `blobs.s` are generated build artifacts and must not be committed.
-- Never execute the `SAMPLE_FREESTANDING` branch of `memory/Memory.hpp` on the
+- Never execute the `SAMPLE_FREESTANDING` branch of `Memory.hpp` on the
   host; it dereferences the real 68000 address map directly.
-- Keep the shared game allocation-free. The cartridge intentionally provides no
-  `operator new/delete`, so use automatic or embedded fixed-capacity storage.
+- Keep the shared game allocation-free. The real-hardware build intentionally
+  provides no `operator new/delete`, so use automatic or embedded
+  fixed-capacity storage.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

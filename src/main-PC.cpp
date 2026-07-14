@@ -4,7 +4,7 @@
  */
 
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
-#include "MegaDriveEnvironmentSampleGame/platform/PlatformMemory.hpp"
+#include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 #include "config/controls/ControlsConfigUI.hpp"
 #include "system/MegaDriveEnvironment.hpp"
 
