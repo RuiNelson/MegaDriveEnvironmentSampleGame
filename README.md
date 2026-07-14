@@ -223,7 +223,7 @@ python3 tools/build_asset_rom.py \
 
 An alternative image can be selected with `--rom FILE`.
 
-## One platform-memory API, two implementations
+## One memory API, target-specific cost
 
 Game code uses the common `memory::Memory` contract. It defines 8/16/32-bit
 big-endian access, 24-bit address normalization, block reads/writes, overlapping
@@ -232,12 +232,14 @@ copies, fills, and masked waits on memory-mapped registers.
 - `platform/megadrive_environment/PlatformMemory.cpp` forwards operations to
   the thread-safe `SystemMemory` owned by `MegaDriveEnvironment`. Register
   waits yield, and VBlank consumes the environment's VSync events.
-- `platform/megadrive/PlatformMemory.cpp` performs direct `volatile` reads and
-  writes on the real 68000 address bus and busy-waits on hardware registers.
+- In a cartridge build, `memory/Memory.hpp` turns that same API into a concrete,
+  stateless type. Its primitive `volatile` reads, writes, and masked busy-wait
+  are forced inline, so there is no backend object, virtual dispatch, or helper
+  subroutine around an individual 68000 bus instruction.
 
-Both implement the single `platform/PlatformMemory.hpp` API. The target build
-selects the appropriate implementation; the real-hardware implementation must
-never be executed on the host.
+`platform/PlatformMemory.hpp` exposes the PC adapter in a host build and an
+alias to `memory::Memory` in a cartridge build. `SAMPLE_FREESTANDING` selects
+the latter; its direct address-map accesses must never execute on the host.
 
 ```bash
 ctest --test-dir build --output-on-failure
@@ -278,8 +280,8 @@ later without changing game code.
 - `tools/build_megadrive_rom.py` builds and validates the real cartridge image.
 - `memory/Memory.hpp` is the platform-neutral memory contract.
 - `controllers/ControllerReader.hpp` decodes controllers through that contract.
-- `platform/PlatformMemory.hpp` declares the one platform-memory type;
-  `platform/megadrive_environment` and `platform/megadrive` implement it.
+- `platform/PlatformMemory.hpp` selects the host adapter or zero-cost cartridge
+  alias; the cartridge primitives themselves live inline in `memory/Memory.hpp`.
 
 New features belong in the shared game and renderer. Platform code should only
 change when memory access or target bootstrapping itself changes.

@@ -37,15 +37,6 @@ target_link_libraries(sample_memory_megadrive_environment PUBLIC
     MegaDriveEnvironment::MegaDriveEnvironment
 )
 
-# This backend has no host dependencies. Compiling it here catches API drift;
-# build_megadrive.sh compiles it again for the 68000 cartridge target.
-add_library(sample_memory_megadrive_hardware STATIC
-    src/platform/megadrive/PlatformMemory.cpp
-)
-target_include_directories(sample_memory_megadrive_hardware PUBLIC include)
-target_compile_definitions(sample_memory_megadrive_hardware PRIVATE SAMPLE_FREESTANDING=1)
-target_link_libraries(sample_memory_megadrive_hardware PUBLIC sample_memory_common)
-
 add_library(sample_controllers STATIC src/controllers/ControllerReader.cpp)
 target_include_directories(sample_controllers PUBLIC include)
 target_link_libraries(sample_controllers PUBLIC sample_memory_common)
