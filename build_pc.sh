@@ -4,17 +4,23 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${BUILD_DIR:-${ROOT_DIR}/build}"
 BUILD_TYPE="${BUILD_TYPE:-Debug}"
+PYTHON3="${PYTHON3:-python3}"
+MEGADRIVE_ENVIRONMENT_DIR="${MEGADRIVE_ENVIRONMENT_DIR:-${ROOT_DIR}/../MegaDriveEnvironment}"
+
+if [[ "${BUILD_DIR}" != /* ]]; then
+    BUILD_DIR="${ROOT_DIR}/${BUILD_DIR}"
+fi
+
+"${PYTHON3}" "${ROOT_DIR}/tools/build_asset_rom.py" \
+    --output "${BUILD_DIR}/sample_game_assets.bin" \
+    --font-data "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
 
 cmake_args=(
     -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
     -DBUILD_TESTING=ON
+    -DMEGADRIVE_ENVIRONMENT_DIR="${MEGADRIVE_ENVIRONMENT_DIR}"
+    -DSAMPLE_ASSET_ROM_PREBUILT=ON
 )
-
-if [[ -n "${MEGADRIVE_ENVIRONMENT_DIR:-}" ]]; then
-    cmake_args+=(
-        -DMEGADRIVE_ENVIRONMENT_DIR="${MEGADRIVE_ENVIRONMENT_DIR}"
-    )
-fi
 
 cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" "${cmake_args[@]}" "$@"
 cmake --build "${BUILD_DIR}" --parallel

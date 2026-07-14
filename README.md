@@ -50,12 +50,17 @@ The scripts resolve paths relative to their own location, so they can be called
 from any working directory. `configure_controls.sh` and `run_pc.sh` use the
 same project-root `controls.yaml`.
 
+`build_pc.sh` first runs `tools/build_asset_rom.py` to generate the raw 32-Mbit
+ROM at `build/sample_game_assets.bin`, then configures and compiles the PC
+executable.
+
 Environment variables customize the PC build:
 
 ```bash
 BUILD_TYPE=Release ./build_pc.sh
 BUILD_DIR=/tmp/sample-build ./build_pc.sh
 MEGADRIVE_ENVIRONMENT_DIR=/path/to/MegaDriveEnvironment ./build_pc.sh
+PYTHON3=/path/to/python3 ./build_pc.sh
 ```
 
 Useful development options:

@@ -53,19 +53,27 @@ set(SAMPLE_ASSET_ROM "${CMAKE_CURRENT_BINARY_DIR}/sample_game_assets.bin")
 set(SAMPLE_FONT_DATA
     "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
 )
-add_custom_command(
-    OUTPUT "${SAMPLE_ASSET_ROM}"
-    COMMAND "${Python3_EXECUTABLE}"
+option(SAMPLE_ASSET_ROM_PREBUILT "Asset ROM was generated before CMake build" OFF)
+if(SAMPLE_ASSET_ROM_PREBUILT)
+    if(NOT EXISTS "${SAMPLE_ASSET_ROM}")
+        message(FATAL_ERROR "Prebuilt asset ROM does not exist: ${SAMPLE_ASSET_ROM}")
+    endif()
+    add_custom_target(sample_asset_rom ALL)
+else()
+    add_custom_command(
+        OUTPUT "${SAMPLE_ASSET_ROM}"
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_asset_rom.py"
+                --output "${SAMPLE_ASSET_ROM}"
+                --font-data "${SAMPLE_FONT_DATA}"
+        DEPENDS
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_asset_rom.py"
-            --output "${SAMPLE_ASSET_ROM}"
-            --font-data "${SAMPLE_FONT_DATA}"
-    DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_asset_rom.py"
-        "${SAMPLE_FONT_DATA}"
-    COMMENT "Building raw 32-Mbit asset ROM"
-    VERBATIM
-)
-add_custom_target(sample_asset_rom ALL DEPENDS "${SAMPLE_ASSET_ROM}")
+            "${SAMPLE_FONT_DATA}"
+        COMMENT "Building raw 32-Mbit asset ROM"
+        VERBATIM
+    )
+    add_custom_target(sample_asset_rom ALL DEPENDS "${SAMPLE_ASSET_ROM}")
+endif()
 
 add_executable(mega_drive_environment_sample_game
     src/main.cpp
