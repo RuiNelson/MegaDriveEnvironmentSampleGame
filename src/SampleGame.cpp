@@ -41,7 +41,7 @@ constexpr std::array<std::uint16_t, 16> kFloorPalette{
 } // namespace
 
 SampleGame::SampleGame(std::string romPath, unsigned frameLimit)
-    : MegaDriveEnvironment(VDP::VSync, VDP::Integer), romPath_(std::move(romPath)), frameLimit_(frameLimit),
+    : MegaDriveEnvironment(VDP::InternalTimer, VDP::Integer), romPath_(std::move(romPath)), frameLimit_(frameLimit),
       gameMemory_(memory()), player1Controller_(gameMemory_, controllers::Player::One), soundEffects_(gameMemory_) {
 }
 
