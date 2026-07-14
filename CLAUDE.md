@@ -35,6 +35,8 @@ cmake -S . -B build \
   under `platform/megadrive_environment/` or `platform/megadrive/`.
 - Controller code must use `controllers/ControllerReader` and memory-mapped I/O,
   not SDL or `Controllers::getCurrentState()` directly.
+- Keep command-line processing dependency-free; extend the manual parser in
+  `src/main.cpp` instead of adding CLI11 or another argument library.
 - `tools/build_asset_rom.py` owns the raw asset ROM layout. Keep it headerless
   and manifest-free until the project explicitly introduces a ROM header.
 - Never execute `HardwareMemory` on the host; it dereferences the real 68000

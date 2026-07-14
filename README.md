@@ -57,11 +57,29 @@ cmake -S . -B build \
 Useful development options:
 
 ```bash
+./build/mega_drive_environment_sample_game --config-controls
 ./build/mega_drive_environment_sample_game --debug
 ./build/mega_drive_environment_sample_game --frames 10
 ```
 
 `--frames N` exits after N frames and is useful for smoke tests and CI.
+
+## Configure controls on PC
+
+Run the interactive keyboard/gamepad configuration UI with:
+
+```bash
+./build/mega_drive_environment_sample_game --config-controls
+```
+
+`--configControls` is also accepted for compatibility with
+`StreetsOfRageRecompilation`. The UI writes `controls.yaml` in the current
+working directory and then exits. The next game run loads those bindings
+automatically through `MegaDriveEnvironment`; the shared `ControllerReader`
+continues to see them through the emulated memory-mapped controller ports.
+
+The command line is parsed directly with the C++ standard library. This sample
+does not use CLI11 or another argument-processing dependency.
 
 ## Raw asset ROM
 
