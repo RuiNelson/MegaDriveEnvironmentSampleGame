@@ -388,9 +388,9 @@ later without changing game code.
 - `megadrive/header.s` and `megadrive/main.s` are the hand-written assembly inputs.
 - `tools/build_megadrive_rom.py` builds and validates the ROM image for real
   hardware.
-- `ControllerReader.hpp` decodes controllers through that contract.
 - `Memory.hpp` is the only memory header; `Memory-PC.cpp` and `Memory-MD.cpp`
   provide the two target implementations.
+- `ControllerReader.hpp` decodes controllers through that contract.
 
 New features belong in the shared game and renderer. Platform code should only
 change when memory access or target bootstrapping itself changes.
