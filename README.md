@@ -16,7 +16,7 @@ configuration), collect the yellow gems, and press A or Start to reset.
 - loading palettes, font data, and 4-bpp tiles;
 - drawing Plane A/Plane B text and backgrounds;
 - updating linked entries in the sprite attribute table;
-- reading Player 1 through `controllers().getCurrentState()`.
+- reading Player 1 through the memory-mapped controller ports;
 - sharing one 24-bit memory API between the PC environment and real hardware.
 
 The helper code in `VdpUtils` is intentionally explicit. It exposes the VDP
@@ -85,12 +85,25 @@ still requires real-hardware implementations for startup/vector tables, VDP,
 controllers, interrupts and audio, plus a selected 68000 compiler and linker
 script. Those pieces are intentionally not hidden behind a fake “ROM build”.
 
+## Shared controller reader
+
+`ControllerReader` is a small target-independent library built on
+`memory::Memory`. It configures TH through `$A10009/$A1000B`, samples the data
+ports at `$A10003/$A10005`, decodes the active-low three-button protocol, and
+returns a plain `ControllerState`.
+
+The game uses this reader in the PC environment today. On real hardware the
+same code operates through `HardwareMemory`, so controller logic does not need
+a second implementation. Six-button controller negotiation can be added to
+this library later without changing game code.
+
 ## Code tour
 
 - `src/main.cpp` parses the tiny host-side CLI and calls `boot()`.
 - `SampleGame` owns game state, input, collision, and the frame loop.
 - `VdpUtils` contains the environment target's VDP operations.
 - `memory/Memory.hpp` is the platform-neutral memory contract.
+- `controllers/ControllerReader.hpp` decodes controllers through that contract.
 - `platform/megadrive_environment` and `platform/megadrive` contain the two
   memory implementations.
 

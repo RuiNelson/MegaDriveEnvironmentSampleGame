@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
 #include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
 #include "system/MegaDriveEnvironment.hpp"
 
@@ -27,6 +28,7 @@ class SampleGame final : public MegaDriveEnvironment {
     bool resetWasPressed_ = false;
 
     platform::megadrive_environment::EnvironmentMemory gameMemory_;
+    controllers::ControllerReader player1Controller_;
 
     int playerX_ = 40;
     int playerY_ = 104;

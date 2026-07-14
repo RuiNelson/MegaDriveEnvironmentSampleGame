@@ -43,6 +43,10 @@ add_library(sample_memory_megadrive_hardware STATIC
 target_include_directories(sample_memory_megadrive_hardware PUBLIC include)
 target_link_libraries(sample_memory_megadrive_hardware PUBLIC sample_memory_common)
 
+add_library(sample_controllers STATIC src/controllers/ControllerReader.cpp)
+target_include_directories(sample_controllers PUBLIC include)
+target_link_libraries(sample_controllers PUBLIC sample_memory_common)
+
 add_executable(mega_drive_environment_sample_game
     src/main.cpp
     src/SampleGame.cpp
@@ -51,6 +55,7 @@ add_executable(mega_drive_environment_sample_game
 
 target_include_directories(mega_drive_environment_sample_game PRIVATE include)
 target_link_libraries(mega_drive_environment_sample_game PRIVATE
+    sample_controllers
     sample_memory_megadrive_environment
 )
 
@@ -59,4 +64,8 @@ if(BUILD_TESTING)
     add_executable(sample_memory_test tests/MemoryTest.cpp)
     target_link_libraries(sample_memory_test PRIVATE sample_memory_megadrive_environment)
     add_test(NAME sample_memory_test COMMAND sample_memory_test)
+
+    add_executable(sample_controller_reader_test tests/ControllerReaderTest.cpp)
+    target_link_libraries(sample_controller_reader_test PRIVATE sample_controllers)
+    add_test(NAME sample_controller_reader_test COMMAND sample_controller_reader_test)
 endif()

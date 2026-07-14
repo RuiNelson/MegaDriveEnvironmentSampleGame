@@ -58,10 +58,14 @@ bool overlaps(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
 } // namespace
 
 SampleGame::SampleGame(unsigned frameLimit)
-    : MegaDriveEnvironment(VDP::VSync, VDP::Integer), frameLimit_(frameLimit), gameMemory_(memory()) {
+    : MegaDriveEnvironment(VDP::VSync, VDP::Integer),
+      frameLimit_(frameLimit),
+      gameMemory_(memory()),
+      player1Controller_(gameMemory_, controllers::Player::One) {
 }
 
 void SampleGame::run() {
+    player1Controller_.initialize();
     initializeGraphics();
     render();
 
@@ -116,7 +120,7 @@ void SampleGame::initializeGraphics() {
 }
 
 void SampleGame::update() {
-    const auto controls = controllers().getCurrentState().player1;
+    const auto controls = player1Controller_.read();
     constexpr int speed = 2;
 
     playerX_ += (controls.right ? speed : 0) - (controls.left ? speed : 0);

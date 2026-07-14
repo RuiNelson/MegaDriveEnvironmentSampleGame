@@ -33,6 +33,8 @@ cmake -S . -B build \
 - Keep hardware-facing helpers in `VdpUtils`; keep game rules in `SampleGame`.
 - Keep shared platform contracts under `memory/` and target implementations
   under `platform/megadrive_environment/` or `platform/megadrive/`.
+- Controller code must use `controllers/ControllerReader` and memory-mapped I/O,
+  not SDL or `Controllers::getCurrentState()` directly.
 - Never execute `HardwareMemory` on the host; it dereferences the real 68000
   address map directly.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.
