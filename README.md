@@ -252,73 +252,105 @@ rendering and VBlank synchronization use the same addresses and commands. The
 PSG player writes to `$C00011`, which reaches emulated audio on PC and the chip
 on a real Mega Drive.
 
-## Memory management
+## Memory management and the 64 KiB Work RAM budget
 
 There are two separate ideas called "memory" in this project:
 
 - `memory::Memory` represents the Mega Drive address bus. Calls such as
-  `write16(0xC00004, value)` communicate with hardware; they do not allocate or
-  own C++ objects.
-- C++ object storage determines where the player, enemy, game session, and
-  temporary values live and who controls their lifetime.
+  `write16(0xC00004, value)` communicate with mapped hardware; they do not
+  allocate or own C++ objects.
+- Storage management decides where mutable game state and temporary data live,
+  how much space they may use, and when that space can be reused.
 
-The shared game uses automatic ownership and performs no dynamic allocation.
-This means automatic storage rather than garbage collection: C++ creates each
-object when its owner is created and reclaims temporary stack storage when a
-function returns. `SampleGame` directly contains its controller, `GameSession`,
-and sound player; `GameSession` directly contains the player, gem, and enemy.
-Their lifetimes therefore follow their owners without calls to `new` or
-`delete`.
+A real Mega Drive gives the 68000 only 64 KiB of Work RAM at
+`$FF0000-$FFFFFF`. The stack, persistent game state, decompression workspaces,
+staging buffers, and any custom allocator must all fit in that same physical
+region. The initial stack pointer is `$FFFFFC` and the stack grows downwards;
+there is no guard page to stop it from overwriting another Work RAM region.
 
-On a real Mega Drive, `game_main()` creates `PlatformMemory` and `SampleGame` on
-the 68000 stack in Work RAM. Small function-local values use that same stack.
-Constant palettes, strings, executable code, and tile blobs remain in ROM, and
-VDP VRAM/CRAM are accessed through fixed hardware addresses. The cartridge has
-no heap allocator and deliberately provides no `operator new/delete`, so an
-accidental dynamic allocation fails during linking. The linker also rejects
-mutable global state that would require BSS initialization.
+The correct design is therefore not necessarily "put everything on the stack"
+or "allocate everything manually". Decide a Work RAM budget before building the
+game and give every use a bounded region and lifetime:
 
-The PC executable uses the same allocation-free game classes. Host-only
-infrastructure such as `MegaDriveEnvironment`, SDL, or the command-line ROM path
-may allocate internally, but it does not change ownership inside the shared
-game.
+| Use | Typical storage choice |
+| --- | --- |
+| Function calls and small local values | 68000 stack, with reserved headroom |
+| Persistent player, world, and subsystem state | Fixed objects or a reserved static region |
+| Temporary decompression or conversion data | Reusable scratch arena in Work RAM |
+| Variable enemies, projectiles, or effects | Fixed-capacity typed pools |
+| Immutable compressed assets and programs | Cartridge ROM until consumed |
 
-This allocation-free design is the model chosen by the sample, not a restriction
-of MegaDriveEnvironment. A new game may instead choose manual allocation, for
-example with a fixed-capacity arena or separate pools for enemies, projectiles,
-and effects. Choose the ownership model before building gameplay systems:
+Direct members and fixed arrays are useful because their maximum size is known,
+but they are not automatically free of RAM cost. Their storage follows their
+owner: in this sample `SampleGame` is created on the stack, so its embedded
+`GameSession`, controller, and sound state also consume stack space for the
+whole run. Large buffers should not become members of that stack object merely
+to avoid writing an allocator.
 
-- **Automatic/fixed storage:** objects are direct members or fixed-size arrays;
-  C++ scope and owner lifetime determine when their storage is available.
-- **Manual storage:** the game reserves a known Work RAM region and explicitly
-  acquires and releases slots from an arena or pool.
+A game that chooses a reserved static region must describe it in the linker
+script and initialize it during cartridge startup. Zero-initialized BSS must be
+cleared in Work RAM, while mutable initialized data normally needs an initial
+copy stored in ROM and copied to Work RAM. This sample needs neither operation
+and deliberately makes non-empty BSS a link error.
 
-A manual model may expose explicit `allocate/release` operations or deliberately
-provide complete `operator new/delete` implementations backed by that reserved
-storage. The sample omits them only because it chose the automatic model.
+### Compressed cartridge data
 
-A manual allocator must define its memory range, alignment, capacity,
-out-of-memory behaviour, and reset/destruction rules. It must not overlap the
-68000 stack, and the PC build should use the same capacities and allocation
-rules so that a game cannot succeed on PC but fail on the cartridge. Avoid
-mixing ownership models accidentally; any boundary between them should have one
-clearly documented owner.
+Compressed graphics, sound data, and Z80 programs are good examples of data
+that need an explicit transfer plan. Keeping the compressed bytes in ROM saves
+cartridge space, but decompression may require mutable state or an output
+workspace before the result is sent to VRAM or Z80 RAM.
 
-When extending this sample with its existing automatic-storage model:
+Prefer a streaming decoder when the format permits it: read compressed bytes
+from ROM and emit decoded words directly to the VDP data port or, after taking
+the Z80 bus, to Z80 RAM. Only the decoder's small history/state then needs Work
+RAM. If the algorithm requires a complete output block, back-references, or a
+conversion pass, reserve a bounded scratch arena in Work RAM, decompress there,
+transfer the result, and reuse the arena after the transfer. A large local C++
+array is not an appropriate substitute because it silently consumes the stack.
 
-- store a new game object directly as a member of its owner;
-- for a bounded collection, use a fixed-size member array plus an active count;
-- use references or pointers only as non-owning views whose owner outlives them;
-- keep large immutable assets in ROM rather than copying them into Work RAM;
-- avoid `new`, `delete`, `malloc`, `free`, `std::vector`, and `std::string` in
-  shared game code;
-- keep local buffers small because the cartridge has no stack-overflow guard.
+A game may deliberately implement manual allocation for these workspaces. It
+can expose explicit `allocate/release` operations, typed pools, or complete
+`operator new/delete` implementations backed by reserved Work RAM. Such an
+allocator must define its address range, alignment, capacity, out-of-memory
+behaviour, reset rules, and relationship with the descending stack. The current
+sample instead chooses no heap, supplies no `operator new/delete`, and rejects
+BSS through its linker script; those are sample policies, not limitations of
+MegaDriveEnvironment or of Mega Drive software.
 
-If a future game genuinely needs dynamic lifetimes, design one explicit,
-fixed-capacity pool or arena for both targets as a deliberate architecture
-change. Do not add an ad-hoc heap only to one platform, because that would make
-memory behaviour and failure modes differ between the PC build and the
-cartridge.
+### Important PC versus cartridge difference
+
+On PC, shared C++ functions execute on the native host thread and their local
+variables use the native host stack. That stack is separate from the 64 KiB Work
+RAM array modelled by MegaDriveEnvironment and is normally much larger. A game
+can therefore run perfectly in MegaDriveEnvironment while a large local buffer,
+deep call chain, or recursion overflows the real cartridge stack.
+
+`memory::Memory` cannot fix this difference: it controls explicit bus reads and
+writes, not where the C++ implementation places automatic variables. Portable
+C++ provides no way to redirect ordinary function frames into
+MegaDriveEnvironment's emulated Work RAM or to give the host stack exactly the
+68000 ABI's size and layout. Overriding `operator new` would only affect dynamic
+allocation, not local variables. An OS-specific small host thread stack can
+catch some mistakes, but it is not equivalent to the cartridge stack because
+the host ABI and runtime use different frame sizes.
+
+Explicit arenas and pools can still behave identically on both targets: give
+the PC version the same capacities and failure rules, and represent scratch
+storage as Work RAM addresses accessed through `memory::Memory` rather than as
+an unlimited host `std::vector`. Stack safety must additionally be checked from
+the m68k build itself by budgeting worst-case call depth and frame sizes,
+avoiding recursion and large locals, reserving headroom, and optionally checking
+a canary at the chosen lower stack boundary on hardware.
+
+Before choosing automatic storage, static regions, or manual allocation,
+document at least:
+
+- the maximum stack budget and its lower boundary;
+- persistent Work RAM regions and their owners;
+- scratch arenas, their largest operation, and when they may be reused;
+- pool capacities and what happens when a pool is full;
+- transfers from ROM to Work RAM, VRAM, CRAM, and Z80 RAM;
+- the checks used on PC and in the m68k build to enforce those limits.
 
 ## Shared controller reader
 
