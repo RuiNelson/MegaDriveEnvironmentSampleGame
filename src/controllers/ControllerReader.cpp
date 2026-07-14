@@ -1,3 +1,8 @@
+/**
+ * @file ControllerReader.cpp
+ * Two-phase TH protocol for the Mega Drive's controller I/O ports.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
 
 namespace sample::controllers {
@@ -19,11 +24,14 @@ ControllerReader::ControllerReader(memory::Memory &memory, Player player)
 }
 
 void ControllerReader::initialize() {
-    memory_.write8(controlPort_, kThHigh); // bit 6 is an output
+    // Control bit 6 selects TH's direction; setting it makes TH an output.
+    memory_.write8(controlPort_, kThHigh);
     memory_.write8(dataPort_, kThHigh);
 }
 
 ControllerState ControllerReader::read() {
+    // TH high exposes directions plus B/C. TH low keeps directions on bits 0/1,
+    // grounds bits 2/3 as a three-button signature, and exposes A/Start.
     memory_.write8(dataPort_, kThHigh);
     const std::uint8_t high = memory_.read8(dataPort_);
 

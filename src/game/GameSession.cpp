@@ -1,3 +1,8 @@
+/**
+ * @file GameSession.cpp
+ * Deterministic, allocation-free game simulation shared by both targets.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/game/GameSession.hpp"
 
 namespace sample::game {
@@ -29,6 +34,7 @@ int Entity::height() const {
 }
 
 bool Entity::overlaps(const Entity &other) const {
+    // Strict inequalities mean merely touching edges is not a collision.
     return x_ < other.x_ + other.width_ && x_ + width_ > other.x_ && y_ < other.y_ + other.height_ &&
            y_ + height_ > other.y_;
 }
@@ -55,6 +61,7 @@ void Player::update(const controllers::ControllerState &controls) {
     move((controls.right ? speed : 0) - (controls.left ? speed : 0),
          (controls.down ? speed : 0) - (controls.up ? speed : 0));
 
+    // The HUD occupies the top four tile rows and is not part of the playfield.
     int clampedX = x();
     int clampedY = y();
     if (clampedX < 0) {
@@ -80,7 +87,8 @@ void Collectible::reset() {
 }
 
 void Collectible::moveToNextPosition() {
-    // Incremental wrapping avoids division helpers in the freestanding build.
+    // The increments are coprime with their ranges, giving long deterministic
+    // cycles. Incremental wrapping avoids division helpers in the ROM build.
     stepX_ = static_cast<std::uint16_t>(stepX_ + 73);
     if (stepX_ >= 280) {
         stepX_ = static_cast<std::uint16_t>(stepX_ - 280);
@@ -107,6 +115,7 @@ void Enemy::chase(const Player &player) {
     }
     chaseFrame_ = 0;
 
+    // Each axis moves independently, so diagonal pursuit has the same cadence.
     const int deltaX = player.x() > x() ? 1 : (player.x() < x() ? -1 : 0);
     const int deltaY = player.y() > y() ? 1 : (player.y() < y() ? -1 : 0);
     move(deltaX, deltaY);
@@ -128,6 +137,9 @@ GameSession::GameSession() = default;
 
 Events GameSession::update(const controllers::ControllerState &controls) {
     Events events;
+    // Reset is edge-triggered to avoid restarting every frame while held. It is
+    // accepted during play as well as game over, making it a general new-round
+    // command rather than only a game-over acknowledgement.
     const bool resetPressed = controls.a || controls.start;
     if (resetPressed && !resetWasPressed_) {
         reset();
@@ -141,6 +153,8 @@ Events GameSession::update(const controllers::ControllerState &controls) {
         return events;
     }
 
+    // Ordering is intentional: collect after player movement, then advance the
+    // enemy and test the potentially updated enemy position for game over.
     player_.update(controls);
     if (player_.overlaps(gem_)) {
         ++score_;

@@ -1,3 +1,8 @@
+/**
+ * @file EnvironmentMemory.cpp
+ * Delegation from the sample memory API to MegaDriveEnvironment SystemMemory.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
 
 #include "system/memory/SystemMemory.hpp"
@@ -8,6 +13,8 @@ EnvironmentMemory::EnvironmentMemory(SystemMemory &memory) : memory_(memory) {
 }
 
 std::uint8_t EnvironmentMemory::read8(memory::Address address) {
+    // SystemMemory owns mapping and device dispatch. Normalize here to mirror
+    // the physical 24-bit address bus before handing it the access.
     return memory_.readByte(memory::Memory::normalize(address));
 }
 

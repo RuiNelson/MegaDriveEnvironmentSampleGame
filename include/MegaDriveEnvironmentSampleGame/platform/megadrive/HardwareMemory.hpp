@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file HardwareMemory.hpp
+ * Real-hardware implementation of the common Mega Drive memory interface.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
 
 namespace sample::platform::megadrive {
@@ -13,6 +18,7 @@ namespace sample::platform::megadrive {
  */
 class HardwareMemory final : public memory::Memory {
   public:
+    /** No setup is needed: addresses are dereferenced directly when accessed. */
     HardwareMemory() = default;
 
     std::uint8_t read8(memory::Address address) override;

@@ -1,3 +1,8 @@
+/**
+ * @file VdpUtils.cpp
+ * MegaDriveEnvironment VDP command encoding and table-writing helpers.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/VdpUtils.hpp"
 
 #include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
@@ -9,6 +14,8 @@ namespace {
 constexpr std::uint8_t kVramWrite = 0x01;
 constexpr std::uint8_t kCramWrite = 0x03;
 
+// A VDP address command is split over two 16-bit control-port writes. The code
+// selects VRAM/CRAM and read/write mode; address bits are interleaved around it.
 std::uint16_t commandWord1(std::uint8_t code, std::uint16_t address) {
     return static_cast<std::uint16_t>(((code & 0x03u) << 14) | (address & 0x3FFFu));
 }
@@ -50,6 +57,7 @@ void initialize(VDP &vdp) {
     writeRegister(vdp, 0x0F, 0x02); // auto-increment by one word
     writeRegister(vdp, 0x10, 0x01); // planes are 64 x 32 cells
 
+    // Full-screen scroll mode consumes one horizontal offset per plane.
     setVramWrite(vdp, kHScrollTable);
     vdp.writeDataPort(0);
     vdp.writeDataPort(0);
@@ -68,6 +76,7 @@ void loadTilesFromRom(VDP &vdp,
                       std::uint16_t firstVramTile,
                       std::uint16_t tileCount) {
     setVramWrite(vdp, static_cast<std::uint16_t>(firstVramTile * 32));
+    // One 8x8 4-bpp tile is 32 bytes, or 16 big-endian words.
     const auto wordCount = static_cast<std::uint32_t>(tileCount) * 16;
     for (std::uint32_t word = 0; word < wordCount; ++word) {
         vdp.writeDataPort(memory.read16(romAddress + word * 2));
@@ -86,6 +95,7 @@ void writePlaneTile(VDP &vdp,
                     int column,
                     int row,
                     std::uint16_t descriptor) {
+    // Plane name tables are row-major arrays of 16-bit descriptors.
     const auto address = static_cast<std::uint16_t>(planeBase + (row * kPlaneWidth + column) * 2);
     setVramWrite(vdp, address);
     vdp.writeDataPort(descriptor);
@@ -116,6 +126,8 @@ void writeSprite(VDP &vdp,
                  std::uint16_t firstTile,
                  std::uint8_t palette,
                  int nextSprite) {
+    // Hardware coordinates are biased by 128 so off-screen negative positions
+    // remain representable in the nine-bit SAT fields.
     setVramWrite(vdp, static_cast<std::uint16_t>(kSpriteTable + spriteIndex * 8));
     vdp.writeDataPort(static_cast<std::uint16_t>((y + 128) & 0x01FF));
 

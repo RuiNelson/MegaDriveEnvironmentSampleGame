@@ -1,3 +1,8 @@
+/**
+ * @file HardwareMemory.cpp
+ * Volatile reads and writes against the real 68000's external address bus.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/platform/megadrive/HardwareMemory.hpp"
 
 namespace sample::platform::megadrive {
@@ -5,6 +10,8 @@ namespace {
 
 template <typename Value>
 volatile Value &bus(memory::Address address) {
+    // volatile prevents the compiler from removing or combining device I/O.
+    // Native m68k loads/stores already have the required big-endian byte order.
     const auto hostAddress = static_cast<std::uintptr_t>(memory::Memory::normalize(address));
     return *reinterpret_cast<volatile Value *>(hostAddress);
 }

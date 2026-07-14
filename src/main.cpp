@@ -1,3 +1,8 @@
+/**
+ * @file main.cpp
+ * Dependency-free command-line entry point for the PC executable.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
 #include "config/controls/ControlsConfigUI.hpp"
 
@@ -8,6 +13,8 @@
 #include <utility>
 
 #ifndef SAMPLE_ASSET_ROM_PATH
+// CMake normally supplies an absolute generated-ROM path. This fallback keeps
+// manually compiled binaries usable from a directory containing the asset ROM.
 #define SAMPLE_ASSET_ROM_PATH "sample_game_assets.bin"
 #endif
 
@@ -17,6 +24,8 @@ int main(int argc, char **argv) {
     bool configureControls = false;
     std::string romPath = SAMPLE_ASSET_ROM_PATH;
 
+    // Parsing is deliberately implemented with standard-library primitives so
+    // the sample does not need a command-line processing dependency.
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument{argv[index]};
         if (argument == "--debug") {
@@ -35,6 +44,7 @@ int main(int argc, char **argv) {
                 return 2;
             }
             const std::string_view value{argv[++index]};
+            // from_chars neither allocates nor accepts trailing junk.
             const auto result = std::from_chars(value.data(), value.data() + value.size(), frameLimit);
             if (result.ec != std::errc{} || result.ptr != value.data() + value.size()) {
                 std::fprintf(stderr, "Invalid value for --frames: %.*s\n", static_cast<int>(value.size()), value.data());
@@ -62,6 +72,7 @@ int main(int argc, char **argv) {
     }
 
     if (configureControls) {
+        // Configuration is a standalone UI and intentionally exits afterward.
         runControlsConfig();
         return 0;
     }

@@ -1,3 +1,11 @@
+/**
+ * @file CartridgeGame.cpp
+ * Freestanding real-hardware entry point, VDP renderer and object composition.
+ *
+ * Gameplay, controller decoding, memory access and sound are shared with the
+ * PC build. Only boot integration and direct VDP presentation live here.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/FreestandingStd.hpp"
 #include "MegaDriveEnvironmentSampleGame/audio/PsgSoundEffects.hpp"
 #include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
@@ -11,6 +19,7 @@ using u16 = std::uint16_t;
 using u32 = std::uint32_t;
 using uptr = std::uintptr_t;
 
+// Physical 16-bit VDP ports and the VRAM table layout selected at startup.
 constexpr u32 kVdpDataPort = 0x00C00000;
 constexpr u32 kVdpControlPort = 0x00C00004;
 constexpr u16 kPlaneA = 0xC000;
@@ -20,6 +29,7 @@ constexpr u16 kHScrollTable = 0xF000;
 constexpr int kPlaneWidth = 64;
 constexpr int kPlaneHeight = 32;
 
+// Tile zero is kept blank. The remaining indices match the host renderer.
 constexpr u16 kFontTile = 1;
 constexpr u16 kPlayerTile = 96;
 constexpr u16 kGemTile = 100;
@@ -27,6 +37,7 @@ constexpr u16 kFloorTile = 101;
 constexpr u16 kEnemyTile = kPlayerTile;
 constexpr u16 kRomTileCount = 101;
 
+// Four 16-color CRAM palettes in 0000BBB0GGG0RRR0 hardware format.
 constexpr u16 kPalettes[4][16]{
     {0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {0x0000, 0x0008, 0x00EE, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -34,10 +45,14 @@ constexpr u16 kPalettes[4][16]{
     {0x0000, 0x0222, 0x000E, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 };
 
+// Generated blobs assembly exports the packed tiles as big-endian words. The
+// linker places this symbol in ROM; no copy to work RAM is required.
 extern "C" const u16 asset_tiles[];
 
+/** Owns direct VDP port access and mirrors the host build's visual layout. */
 class CartridgeVideo final {
   public:
+    /** Configures Mode 5 and loads all static palettes, tiles and plane data. */
     void initialize() {
         // Select the full 3-bit-per-channel CRAM palette. With bit 2 clear,
         // real VDPs only use one bit from each colour component.
@@ -57,6 +72,8 @@ class CartridgeVideo final {
         writeRegister(0x11, 0x00);
         writeRegister(0x12, 0x00);
 
+        // Keep the display off while clearing and populating VRAM to avoid
+        // exposing partially written tables on a physical console.
         clearVram();
         loadPalettes();
         loadTiles();
@@ -72,13 +89,17 @@ class CartridgeVideo final {
         writeRegister(0x01, 0x54); // display enabled, DMA, Mode 5
     }
 
+    /** Polls status across a full low-to-high VBlank transition. */
     void waitForVBlank() const {
+        // Waiting for any existing VBlank to end first prevents a fast frame
+        // from observing the same status interval twice.
         while ((controlPort() & 0x0008u) != 0) {
         }
         while ((controlPort() & 0x0008u) == 0) {
         }
     }
 
+    /** Writes dynamic text and the three linked sprite entries for one frame. */
     void render(const sample::game::GameSession &session) {
         writeScore(session.score());
         writeText(7, 13,
@@ -88,12 +109,14 @@ class CartridgeVideo final {
         const auto &player = session.player();
         const auto &gem = session.gem();
         const auto &enemy = session.enemy();
+        // SAT links form 0 -> 1 -> 2 -> 0; zero terminates the sprite list.
         writeSprite(0, player.x(), player.y(), 2, 2, kPlayerTile, 1, 1);
         writeSprite(1, gem.x(), gem.y(), 1, 1, kGemTile, 2, 2);
         writeSprite(2, enemy.x(), enemy.y(), 2, 2, kEnemyTile, 3, 0);
     }
 
   private:
+    /** Converts a physical address into a volatile 16-bit device register. */
     [[nodiscard]] static volatile u16 &port16(u32 address) {
         return *reinterpret_cast<volatile u16 *>(static_cast<uptr>(address));
     }
@@ -110,6 +133,7 @@ class CartridgeVideo final {
         controlPort() = static_cast<u16>(0x8000u | (static_cast<u16>(reg) << 8) | value);
     }
 
+    /** Encodes the VDP's two-word address-and-operation command. */
     static void setVdpWrite(u8 code, u16 address) {
         const u16 first = static_cast<u16>(((code & 0x03u) << 14) | (address & 0x3FFFu));
         const u16 second = static_cast<u16>(((code & 0x3Cu) << 2) | ((address >> 14) & 0x03u));
@@ -125,11 +149,13 @@ class CartridgeVideo final {
         setVdpWrite(0x03, address);
     }
 
+    /** Packs tile index, palette and priority; both flip bits remain clear. */
     [[nodiscard]] static constexpr u16 tileDescriptor(u16 tile, u8 palette = 0, bool priority = false) {
         return static_cast<u16>((priority ? 0x8000u : 0u) | ((static_cast<u16>(palette) & 3u) << 13) |
                                 (tile & 0x07FFu));
     }
 
+    /** Clears all 64 KiB of VRAM as 32,768 auto-incremented words. */
     static void clearVram() {
         setVramWrite(0);
         for (u32 word = 0; word < 32768; ++word) {
@@ -146,6 +172,7 @@ class CartridgeVideo final {
         }
     }
 
+    /** Copies the linked asset blob to VRAM starting after reserved tile zero. */
     static void loadTiles() {
         setVramWrite(static_cast<u16>(kFontTile * 32));
         for (u16 word = 0; word < kRomTileCount * 16; ++word) {
@@ -160,6 +187,7 @@ class CartridgeVideo final {
         }
     }
 
+    /** Writes one row-major 16-bit cell in a 64-wide plane name table. */
     static void writePlaneTile(u16 plane, int column, int row, u16 descriptor) {
         const u16 cell = static_cast<u16>((row << 6) + column);
         setVramWrite(static_cast<u16>(plane + cell * 2));
@@ -174,6 +202,12 @@ class CartridgeVideo final {
         }
     }
 
+    /**
+     * Renders the three-digit score without division runtime helpers.
+     *
+     * Repeated subtraction is bounded by nine iterations per digit because
+     * GameSession keeps the score in the range 0..999.
+     */
     static void writeScore(u16 score) {
         writeText(15, 3, "SCORE ");
 
@@ -196,6 +230,7 @@ class CartridgeVideo final {
         writePlaneTile(kPlaneA, column, row, tileDescriptor(static_cast<u16>(kFontTile + character - 0x20), 0, true));
     }
 
+    /** Writes one complete eight-byte sprite attribute table entry. */
     static void writeSprite(int index, int x, int y, int widthInTiles, int heightInTiles, u16 firstTile, u8 palette,
                             int nextSprite) {
         setVramWrite(static_cast<u16>(kSpriteTable + index * 8));
@@ -209,11 +244,13 @@ class CartridgeVideo final {
     }
 };
 
+/** Composes shared game objects with the real-memory and VDP backends. */
 class CartridgeGame final {
   public:
     CartridgeGame() : controller_(memory_, sample::controllers::Player::One), soundEffects_(memory_) {
     }
 
+    /** Initializes all devices and runs one update/render per VBlank forever. */
     [[noreturn]] void run() {
         controller_.initialize();
         soundEffects_.initialize();
@@ -229,6 +266,7 @@ class CartridgeGame final {
     }
 
   private:
+    /** Converts one-frame model events into mutually exclusive sound effects. */
     void handleEvents(const sample::game::Events &events) {
         if (events.restarted()) {
             soundEffects_.playRestart();
@@ -239,6 +277,8 @@ class CartridgeGame final {
         }
     }
 
+    // Declaration order is dependency order: controller and sound retain the
+    // memory backend by reference, while video reads the session each frame.
     sample::platform::megadrive::HardwareMemory memory_;
     sample::controllers::ControllerReader controller_;
     sample::game::GameSession session_;
@@ -258,11 +298,14 @@ void operator delete(void *, std::size_t) noexcept {
 }
 
 extern "C" void __cxa_pure_virtual() {
+    // Reaching a pure virtual call indicates a fatal program error. With no OS
+    // or debugger transport available, halt the cartridge deterministically.
     for (;;) {
     }
 }
 
 extern "C" [[noreturn]] void game_main() {
+    // header.asm transfers control here after setting the stack and hardware.
     CartridgeGame game;
     game.run();
 }

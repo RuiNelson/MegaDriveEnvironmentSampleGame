@@ -1,3 +1,8 @@
+/**
+ * @file PsgSoundEffects.cpp
+ * Frame-timed command sequences for the Mega Drive's SN76489-compatible PSG.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/audio/PsgSoundEffects.hpp"
 
 namespace sample::audio {
@@ -21,6 +26,8 @@ void PsgSoundEffects::update() {
         return;
     }
 
+    // Durations are expressed in video frames so both targets produce the same
+    // sequence without relying on clocks, interrupts or floating-point time.
     ++frame_;
     switch (effect_) {
     case Effect::GemCollected:
@@ -77,6 +84,9 @@ void PsgSoundEffects::write(std::uint8_t value) {
 }
 
 void PsgSoundEffects::setTone(std::uint16_t period, std::uint8_t attenuation) {
+    // A tone command latches channel 0 and the divider's low nibble. The next
+    // data byte supplies its upper six bits; attenuation zero is loudest and
+    // fifteen is silent.
     period = static_cast<std::uint16_t>(period & 0x03FFu);
     write(static_cast<std::uint8_t>(0x80u | (period & 0x0Fu)));
     write(static_cast<std::uint8_t>((period >> 4) & 0x3Fu));
@@ -84,11 +94,13 @@ void PsgSoundEffects::setTone(std::uint16_t period, std::uint8_t attenuation) {
 }
 
 void PsgSoundEffects::setNoise(std::uint8_t control, std::uint8_t attenuation) {
+    // The E/F latch prefixes select noise control and noise attenuation.
     write(static_cast<std::uint8_t>(0xE0u | (control & 0x07u)));
     write(static_cast<std::uint8_t>(0xF0u | (attenuation & 0x0Fu)));
 }
 
 void PsgSoundEffects::silence() {
+    // Attenuation 0xF mutes tone channels 0..2 and noise channel 3.
     write(0x9F);
     write(0xBF);
     write(0xDF);

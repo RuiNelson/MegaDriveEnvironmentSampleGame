@@ -1,8 +1,15 @@
+/**
+ * @file Memory.cpp
+ * Byte-oriented bulk operations built on the target-specific bus primitives.
+ */
+
 #include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
 
 namespace sample::memory {
 
 void Memory::read(Address source, std::span<std::uint8_t> destination) {
+    // Using read8/write8 rather than raw host pointers preserves address
+    // normalization and memory-mapped device side effects in every backend.
     for (std::size_t index = 0; index < destination.size(); ++index) {
         destination[index] = read8(source + static_cast<Address>(index));
     }
@@ -19,7 +26,8 @@ void Memory::copy(Address source, Address destination, std::size_t byteCount) {
         return;
     }
 
-    // memmove semantics matter when game objects are compacted inside work RAM.
+    // Copy backwards only when destination starts inside the source interval;
+    // this gives memmove semantics when objects are compacted in work RAM.
     if (normalize(destination) > normalize(source) &&
         normalize(destination) < normalize(source + static_cast<Address>(byteCount))) {
         for (std::size_t index = byteCount; index > 0; --index) {
