@@ -48,6 +48,15 @@ class Memory {
     virtual void write16(Address address, std::uint16_t value) = 0;
     virtual void write32(Address address, std::uint32_t value) = 0;
 
+    /**
+     * Waits until the selected bits of a word match `expected`.
+     *
+     * The default implementation busy-waits, which is appropriate on the real
+     * 68000. Host backends may override it to yield to emulated devices. A
+     * return value of false means the host cancelled the wait.
+     */
+    virtual bool waitFor16(Address address, std::uint16_t mask, std::uint16_t expected);
+
     /** Copies bytes from bus memory into a host or stack buffer. */
     void read(Address source, std::span<std::uint8_t> destination);
     /** Copies bytes from a buffer to bus memory. */

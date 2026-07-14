@@ -4,7 +4,9 @@
  */
 
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
+#include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
 #include "config/controls/ControlsConfigUI.hpp"
+#include "system/MegaDriveEnvironment.hpp"
 
 #include <charconv>
 #include <cstdio>
@@ -17,6 +19,33 @@
 // manually compiled binaries usable from a directory containing the asset ROM.
 #define SAMPLE_ASSET_ROM_PATH "sample_game_assets.bin"
 #endif
+
+namespace {
+
+/** Host bootstrap; all actual game code remains in sample::SampleGame. */
+class EnvironmentApplication final : public MegaDriveEnvironment {
+  public:
+    EnvironmentApplication(std::string romPath, unsigned frameLimit)
+        : MegaDriveEnvironment(VDP::InternalTimer, VDP::Integer),
+          romPath_(std::move(romPath)),
+          frameLimit_(frameLimit),
+          gameMemory_(memory(), this),
+          game_(gameMemory_) {
+    }
+
+  private:
+    void run() override {
+        loadROM(romPath_);
+        game_.run(frameLimit_);
+    }
+
+    std::string romPath_;
+    unsigned frameLimit_;
+    sample::platform::megadrive_environment::EnvironmentMemory gameMemory_;
+    sample::SampleGame game_;
+};
+
+} // namespace
 
 int main(int argc, char **argv) {
     unsigned frameLimit = 0;
@@ -77,8 +106,8 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    sample::SampleGame game{std::move(romPath), frameLimit};
-    game.setDebugLog(debug);
-    game.boot();
+    EnvironmentApplication application{std::move(romPath), frameLimit};
+    application.setDebugLog(debug);
+    application.boot();
     return 0;
 }

@@ -57,6 +57,17 @@ add_library(sample_audio STATIC src/audio/PsgSoundEffects.cpp)
 target_include_directories(sample_audio PUBLIC include)
 target_link_libraries(sample_audio PUBLIC sample_memory_common)
 
+add_library(sample_game STATIC
+    src/SampleGame.cpp
+    src/VdpUtils.cpp
+)
+target_include_directories(sample_game PUBLIC include)
+target_link_libraries(sample_game PUBLIC
+    sample_audio
+    sample_gameplay
+    sample_memory_common
+)
+
 set(SAMPLE_ASSET_ROM "${CMAKE_CURRENT_BINARY_DIR}/sample_game_assets.bin")
 set(SAMPLE_FONT_DATA
     "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
@@ -85,8 +96,6 @@ endif()
 
 add_executable(mega_drive_environment_sample_game
     src/main.cpp
-    src/SampleGame.cpp
-    src/VdpUtils.cpp
 )
 
 target_include_directories(mega_drive_environment_sample_game PRIVATE include)
@@ -95,8 +104,7 @@ target_compile_definitions(mega_drive_environment_sample_game PRIVATE
     SAMPLE_ASSET_ROM_PATH="${SAMPLE_ASSET_ROM}"
 )
 target_link_libraries(mega_drive_environment_sample_game PRIVATE
-    sample_audio
-    sample_gameplay
+    sample_game
     sample_memory_megadrive_environment
 )
 

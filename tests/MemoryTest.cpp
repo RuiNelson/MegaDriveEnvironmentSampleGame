@@ -4,7 +4,9 @@
 
 #include <array>
 #include <cassert>
+#include <chrono>
 #include <cstdint>
+#include <thread>
 
 int main() {
     SystemMemory systemMemory;
@@ -26,5 +28,14 @@ int main() {
 
     memory.fill(base + 32, 0xA5, 4);
     assert(memory.read32(base + 32) == 0xA5A5A5A5);
+
+    memory.write16(base + 40, 0);
+    std::thread producer{[&memory, base] {
+        std::this_thread::sleep_for(std::chrono::milliseconds{5});
+        memory.write16(base + 40, 0x0008);
+    }};
+    assert(memory.waitFor16(base + 40, 0x0008, 0x0008));
+    producer.join();
+
     assert(sample::memory::Memory::normalize(0xFFFF0000u) == base);
 }

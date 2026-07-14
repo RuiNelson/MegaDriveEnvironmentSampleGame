@@ -2,70 +2,61 @@
 
 /**
  * @file SampleGame.hpp
- * @brief MegaDriveEnvironment host application for the sample game.
+ * Complete platform-independent sample game.
  */
 
 #include "MegaDriveEnvironmentSampleGame/audio/PsgSoundEffects.hpp"
 #include "MegaDriveEnvironmentSampleGame/controllers/ControllerReader.hpp"
 #include "MegaDriveEnvironmentSampleGame/game/GameSession.hpp"
-#include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
-#include "system/MegaDriveEnvironment.hpp"
-
-#include <string>
+#include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
 
 namespace sample {
 
 /**
- * Runs the portable game model inside MegaDriveEnvironment.
+ * Owns the entire game, including input, simulation, sound and VDP rendering.
  *
- * This class owns the host-specific frame loop and VDP presentation. Gameplay,
- * controller decoding, memory access, and PSG sequences remain in shared
- * objects that are also compiled into the real cartridge ROM.
+ * All hardware communication goes through memory::Memory. The exact same class
+ * and implementation are therefore compiled for MegaDriveEnvironment and for
+ * the real 68000 cartridge; only the injected Memory implementation changes.
  */
-class SampleGame final : public MegaDriveEnvironment {
+class SampleGame final {
   public:
+    /** Retains `memory` by reference; the backend must outlive the game. */
+    explicit SampleGame(memory::Memory &memory);
+
+    /** Configures the controller, PSG, VDP and initial scene. */
+    void initialize();
+
     /**
-     * @param romPath Path to the raw 32-Mbit asset ROM loaded into emulated ROM.
-     * @param frameLimit Optional number of frames to run; zero means unlimited.
+     * Waits for VBlank, then advances and renders exactly one frame.
+     * @return false only when a host backend cancels its cooperative wait.
      */
-    explicit SampleGame(std::string romPath, unsigned frameLimit = 0);
+    [[nodiscard]] bool runFrame();
 
-  protected:
-    /** CPU-thread entry point containing the initialize/update/render loop. */
-    void run() override;
-
-    /** VBlank callback; releases the CPU thread waiting for the next frame. */
-    void vSync() override;
+    /**
+     * Runs the common frame loop.
+     *
+     * @param frameLimit Number of frames to run, or zero to run forever.
+     */
+    void run(unsigned frameLimit = 0);
 
   private:
-    /** Configures Mode 5, palettes, tile data, planes, and static HUD text. */
+    /** Configures palettes, tile data, planes and static HUD text. */
     void initializeGraphics();
 
-    /** Samples input, advances gameplay/audio by one frame, and handles events. */
+    /** Samples input, advances gameplay/audio and handles one-frame events. */
     void update();
 
     /** Writes the current model state to Plane A and the sprite table. */
     void render();
 
-    /** Drains stale interrupts and blocks cooperatively until the next VBlank. */
-    void waitForVBlank();
-
-    /** Asset-only ROM path retained until the CPU thread starts. */
-    std::string romPath_;
-    /** Test/CI frame cap; zero keeps the interactive game running. */
-    unsigned frameLimit_ = 0;
-    /** Number of completed update/render iterations. */
-    unsigned frameCount_ = 0;
-    /** Set by vSync() and consumed by waitForVBlank(). */
-    bool frameReady_ = false;
-
-    /** Adapts the environment address space to the portable memory contract. */
-    platform::megadrive_environment::EnvironmentMemory gameMemory_;
-    /** Shared memory-mapped three-button controller decoder. */
+    /** Shared bus used for ROM, controller, PSG and VDP accesses. */
+    memory::Memory &memory_;
+    /** Memory-mapped three-button controller decoder. */
     controllers::ControllerReader player1Controller_;
-    /** Platform-independent entities, scoring, collision, and phase state. */
+    /** Platform-independent entities, scoring, collision and phase state. */
     game::GameSession session_;
-    /** Frame-driven SN76489 effect sequencer using the same memory bus. */
+    /** Frame-driven SN76489 effect sequencer. */
     audio::PsgSoundEffects soundEffects_;
 };
 

@@ -2,24 +2,20 @@
 
 /**
  * @file VdpUtils.hpp
- * High-level VDP operations used by the MegaDriveEnvironment build.
+ * Target-independent VDP operations implemented through memory-mapped I/O.
  *
- * The cartridge build has an equivalent freestanding implementation because
- * it talks directly to the VDP ports. Keeping the constants and data formats
- * explicit here makes it easier to compare both rendering paths.
+ * Both MegaDriveEnvironment and the real console expose the VDP at the same
+ * 68000 addresses. Consequently, this renderer depends only on memory::Memory;
+ * the selected memory backend is the sole platform-specific implementation.
  */
 
-#include <array>
-#include <cstdint>
-#include <string_view>
-
-class VDP;
-
-namespace sample::memory {
-class Memory;
-}
+#include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
 
 namespace sample::vdp {
+
+/** Physical VDP ports on the 68000 bus. */
+inline constexpr memory::Address kDataPort = 0xC00000;
+inline constexpr memory::Address kControlPort = 0xC00004;
 
 /** Base addresses of the tables reserved in the 64 KiB VDP VRAM. */
 inline constexpr std::uint16_t kPlaneA = 0xC000;
@@ -31,14 +27,29 @@ inline constexpr std::uint16_t kHScrollTable = 0xF000;
 inline constexpr int kPlaneWidth = 64;
 inline constexpr int kPlaneHeight = 32;
 
-/** Writes one VDP register through the control port. */
-void writeRegister(VDP &vdp, std::uint8_t reg, std::uint8_t value);
+/** Writes one VDP register through the memory-mapped control port. */
+void writeRegister(memory::Memory &memory, std::uint8_t reg, std::uint8_t value);
+
 /** Selects the byte address at which subsequent data-port writes enter VRAM. */
-void setVramWrite(VDP &vdp, std::uint16_t address);
+void setVramWrite(memory::Memory &memory, std::uint16_t address);
+
 /** Selects the byte address at which subsequent data-port writes enter CRAM. */
-void setCramWrite(VDP &vdp, std::uint16_t address);
-/** Resets and configures the VDP for 320x224, Mode 5, 64x32 planes. */
-void initialize(VDP &vdp);
+void setCramWrite(memory::Memory &memory, std::uint16_t address);
+
+/**
+ * Configures the VDP for 320x224 Mode 5 and clears all 64 KiB of VRAM.
+ * The display remains disabled until finishInitialization() is called.
+ */
+void initialize(memory::Memory &memory);
+
+/** Enables the display after palettes, tiles and planes have been populated. */
+void finishInitialization(memory::Memory &memory);
+
+/**
+ * Waits across one complete VBlank transition.
+ * @return false when a host backend cancels the wait during shutdown.
+ */
+[[nodiscard]] bool waitForVBlank(memory::Memory &memory);
 
 /**
  * Loads all 16 colors of a hardware palette.
@@ -46,32 +57,38 @@ void initialize(VDP &vdp);
  * @param palette Palette number in the range 0..3.
  * @param colors Mega Drive CRAM words in `0000BBB0GGG0RRR0` format.
  */
-void loadPalette(VDP &vdp, std::uint8_t palette, const std::array<std::uint16_t, 16> &colors);
+void loadPalette(memory::Memory &memory, std::uint8_t palette, const std::uint16_t (&colors)[16]);
+
 /**
  * Copies packed 4-bpp tiles from the game ROM into VRAM.
  *
  * Each tile occupies 32 bytes in ROM and VRAM. `romAddress` is a byte address
  * on the 68000 bus, while `firstVramTile` is a tile index.
  */
-void loadTilesFromRom(VDP &vdp,
-                      memory::Memory &memory,
+void loadTilesFromRom(memory::Memory &memory,
                       std::uint32_t romAddress,
                       std::uint16_t firstVramTile,
                       std::uint16_t tileCount);
 
 /** Fills all 64x32 cells of a plane with the same tile descriptor. */
-void fillPlane(VDP &vdp, std::uint16_t planeBase, std::uint16_t tileDescriptor);
+void fillPlane(memory::Memory &memory, std::uint16_t planeBase, std::uint16_t tileDescriptor);
+
 /** Writes one in-bounds cell in a plane name table. */
-void writePlaneTile(VDP &vdp, std::uint16_t planeBase, int column, int row, std::uint16_t tileDescriptor);
+void writePlaneTile(memory::Memory &memory,
+                    std::uint16_t planeBase,
+                    int column,
+                    int row,
+                    std::uint16_t tileDescriptor);
+
 /**
- * Writes printable ASCII using a contiguous 0x20..0x7E font tile set.
- * Unsupported characters use tile zero. Text is written with priority set.
+ * Writes a null-terminated printable ASCII string using a contiguous
+ * 0x20..0x7E font tile set. Unsupported characters use tile zero.
  */
-void writeText(VDP &vdp,
+void writeText(memory::Memory &memory,
                std::uint16_t planeBase,
                int column,
                int row,
-               std::string_view text,
+               const char *text,
                std::uint16_t firstFontTile,
                std::uint8_t palette = 0);
 
@@ -85,7 +102,7 @@ void writeText(VDP &vdp,
  * @param heightInTiles Sprite height in the range 1..4.
  * @param nextSprite Index of the next linked entry; zero terminates the list.
  */
-void writeSprite(VDP &vdp,
+void writeSprite(memory::Memory &memory,
                  int spriteIndex,
                  int x,
                  int y,

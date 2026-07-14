@@ -124,11 +124,14 @@ def generate_blobs_assembly(output_path: Path, blob_path: Path) -> None:
 
 def generate_combined_cpp(output_path: Path, repository: Path) -> None:
     sources = (
+        repository / "src" / "memory" / "Memory.cpp",
         repository / "src" / "platform" / "megadrive" / "HardwareMemory.cpp",
         repository / "src" / "controllers" / "ControllerReader.cpp",
         repository / "src" / "game" / "GameSession.cpp",
         repository / "src" / "audio" / "PsgSoundEffects.cpp",
-        repository / "src" / "megadrive" / "CartridgeGame.cpp",
+        repository / "src" / "VdpUtils.cpp",
+        repository / "src" / "SampleGame.cpp",
+        repository / "src" / "megadrive" / "CartridgeMain.cpp",
     )
     lines = ["// Generated compilation unit. Do not edit.\n"]
     for source in sources:
@@ -142,7 +145,13 @@ def normalize_gcc_assembly_for_vasm(assembly_path: Path) -> None:
     for line in assembly_path.read_text(encoding="utf-8").splitlines():
         if line.lstrip().startswith("#"):
             continue
+        if line.strip() == ".weak\t__cxa_pure_virtual":
+            continue
         line = line.replace(".-", "$-")
+        # GCC names A6 as %fp and spells the original 68000 LINK instruction
+        # with an explicit .w suffix. vasm std accepts the equivalent canonical
+        # 68000 form below.
+        line = line.replace("link.w %fp,", "link %a6,").replace("%fp", "%a6")
         if line.lstrip().startswith(".section") and ",@progbits," in line:
             line = line.split(",@progbits,", 1)[0] + ",@progbits"
             line = line.replace('"axG"', '"ax"').replace('"aMS"', '"a"')

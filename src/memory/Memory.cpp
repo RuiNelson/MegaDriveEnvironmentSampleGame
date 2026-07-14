@@ -7,6 +7,13 @@
 
 namespace sample::memory {
 
+bool Memory::waitFor16(Address address, std::uint16_t mask, std::uint16_t expected) {
+    expected = static_cast<std::uint16_t>(expected & mask);
+    while ((read16(address) & mask) != expected) {
+    }
+    return true;
+}
+
 void Memory::read(Address source, std::span<std::uint8_t> destination) {
     // Using read8/write8 rather than raw host pointers preserves address
     // normalization and memory-mapped device side effects in every backend.

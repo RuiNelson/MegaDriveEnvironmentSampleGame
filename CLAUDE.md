@@ -48,7 +48,11 @@ cmake -S . -B build \
 
 - Use C++23.
 - Include only public `MegaDriveEnvironment` headers.
-- Keep hardware-facing helpers in `VdpUtils`; keep game rules in `SampleGame`.
+- Compile `SampleGame`, `VdpUtils`, controllers, gameplay, and audio unchanged
+  for both targets. Do not add a second renderer or target-specific game loop.
+- All runtime hardware access from shared game code must go through
+  `memory::Memory`. Platform implementations may differ in access and waiting:
+  real hardware busy-waits, while MegaDriveEnvironment yields cooperatively.
 - Keep shared platform contracts under `memory/` and target implementations
   under `platform/megadrive_environment/` or `platform/megadrive/`.
 - Controller code must use `controllers/ControllerReader` and memory-mapped I/O,
