@@ -50,9 +50,11 @@ cmake -S . -B build \
 - Include only public `MegaDriveEnvironment` headers.
 - Compile `SampleGame`, `VdpUtils`, controllers, gameplay, and audio unchanged
   for both targets. Do not add a second renderer or target-specific game loop.
+- Drive the shared game through VBlank and HBlank callbacks: the PC entry point
+  overrides `vSync()`/`hSync()`, while the real-hardware IRQ6/IRQ4 handlers
+  forward to the same `SampleGame` methods.
 - All runtime hardware access from shared game code must go through
-  `memory::Memory`. Platform implementations may differ in access and waiting:
-  real hardware busy-waits, while MegaDriveEnvironment yields cooperatively.
+  `memory::Memory`.
 - Keep public headers flat under `include/MegaDriveEnvironmentSampleGame/` and
   implementations flat under `src/`. Shared files have plain names; source
   files that only build for one target use the `-PC` or `-MD` suffix.

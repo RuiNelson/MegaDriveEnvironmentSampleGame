@@ -10,7 +10,6 @@ namespace {
 
 constexpr std::uint8_t kVramWrite = 0x01;
 constexpr std::uint8_t kCramWrite = 0x03;
-constexpr std::uint16_t kVBlankStatus = 0x0008;
 
 // A VDP address command is split over two 16-bit control-port writes. The code
 // selects VRAM/CRAM and read/write mode; address bits are interleaved around it.
@@ -47,16 +46,16 @@ void setCramWrite(memory::Memory &memory, std::uint16_t address) {
 
 void initialize(memory::Memory &memory) {
     // Configure both targets exactly like the physical VDP. The display stays
-    // disabled while tables are populated, and VBlank IRQs are unnecessary
-    // because the shared loop observes the status port through Memory.
-    writeRegister(memory, 0x00, 0x04); // full 3-bit-per-channel CRAM palette
+    // disabled while tables are populated. H/V interrupt callbacks drive the
+    // shared game once initialization has completed.
+    writeRegister(memory, 0x00, 0x14); // full CRAM palette + HBlank IRQ
     writeRegister(memory, 0x01, 0x14); // display disabled, DMA, Mode 5
     writeRegister(memory, 0x02, 0x30); // Plane A at 0xC000
     writeRegister(memory, 0x03, 0x2C); // Window at 0xB000
     writeRegister(memory, 0x04, 0x07); // Plane B at 0xE000
     writeRegister(memory, 0x05, 0x68); // sprite table at 0xD000
     writeRegister(memory, 0x07, 0x00); // backdrop palette 0, color 0
-    writeRegister(memory, 0x0A, 0xFF); // HBlank counter; IRQ remains disabled
+    writeRegister(memory, 0x0A, 0x07); // HBlank IRQ every eight scanlines
     writeRegister(memory, 0x0B, 0x00); // full-screen scrolling
     writeRegister(memory, 0x0C, 0x81); // H40 (320 pixels), non-interlaced
     writeRegister(memory, 0x0D, 0x3C); // HScroll table at 0xF000
@@ -74,14 +73,13 @@ void initialize(memory::Memory &memory) {
 }
 
 void finishInitialization(memory::Memory &memory) {
-    writeRegister(memory, 0x01, 0x54); // display enabled, DMA, Mode 5
+    writeRegister(memory, 0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
 }
 
-bool waitForVBlank(memory::Memory &memory) {
-    // Waiting for an existing VBlank to end prevents a fast frame from seeing
-    // the same interval twice. The backend chooses busy or cooperative waits.
-    return memory.waitFor16(kControlPort, kVBlankStatus, 0) &&
-           memory.waitFor16(kControlPort, kVBlankStatus, kVBlankStatus);
+void writeHorizontalScroll(memory::Memory &memory, std::uint16_t planeA, std::uint16_t planeB) {
+    setVramWrite(memory, kHScrollTable);
+    memory.write16(kDataPort, planeA);
+    memory.write16(kDataPort, planeB);
 }
 
 void loadPalette(memory::Memory &memory, std::uint8_t palette, const std::uint16_t (&colors)[16]) {

@@ -108,6 +108,20 @@ irq_level_7:
 
 | Reading VDP status acknowledges both external VDP interrupt sources.
 irq_level_4:
-irq_level_6:
+    movem.l %d0-%d1/%a0-%a1, -(%sp)
     move.w  0x00C00004, %d0
+    jsr     game_hsync
+    movem.l (%sp)+, %d0-%d1/%a0-%a1
     rte
+
+irq_level_6:
+    movem.l %d0-%d1/%a0-%a1, -(%sp)
+    move.w  0x00C00004, %d0
+    jsr     game_vsync
+    movem.l (%sp)+, %d0-%d1/%a0-%a1
+    rte
+
+    .globl wait_for_interrupt
+wait_for_interrupt:
+    stop    #0x2000            | Supervisor mode, all maskable IRQs enabled
+    rts

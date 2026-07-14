@@ -45,11 +45,8 @@ void initialize(memory::Memory &memory);
 /** Enables the display after palettes, tiles and planes have been populated. */
 void finishInitialization(memory::Memory &memory);
 
-/**
- * Waits across one complete VBlank transition.
- * @return false when a host backend cancels the wait during shutdown.
- */
-[[nodiscard]] bool waitForVBlank(memory::Memory &memory);
+/** Updates the full-screen horizontal offsets for Plane A and Plane B. */
+void writeHorizontalScroll(memory::Memory &memory, std::uint16_t planeA, std::uint16_t planeB);
 
 /**
  * Loads all 16 colors of a hardware palette.

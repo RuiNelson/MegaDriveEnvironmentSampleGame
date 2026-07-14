@@ -27,18 +27,14 @@ class SampleGame final {
     /** Configures the controller, PSG, VDP and initial scene. */
     void initialize();
 
-    /**
-     * Waits for VBlank, then advances and renders exactly one frame.
-     * @return false only when a host backend cancels its cooperative wait.
-     */
-    [[nodiscard]] bool runFrame();
+    /** Advances input, gameplay, sound and rendering once per VBlank IRQ. */
+    void onVSync();
 
     /**
-     * Runs the common frame loop.
-     *
-     * @param frameLimit Number of frames to run, or zero to run forever.
+     * Applies a raster scroll effect when the VDP raises an HBlank IRQ.
+     * @param scanline Scanline that triggered the interrupt.
      */
-    void run(unsigned frameLimit = 0);
+    void onHSync(int scanline);
 
   private:
     /** Configures palettes, tile data, planes and static HUD text. */
@@ -58,6 +54,8 @@ class SampleGame final {
     game::GameSession session_;
     /** Frame-driven SN76489 effect sequencer. */
     audio::PsgSoundEffects soundEffects_;
+    /** Advances the Plane B raster-wave pattern once per displayed frame. */
+    std::uint8_t rasterPhase_ = 0;
 };
 
 } // namespace sample

@@ -36,11 +36,35 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
   private:
     void run() override {
         loadROM(romPath_);
-        game_.run(frameLimit_);
+        game_.initialize();
+
+        // Initialization can take several host frames while VRAM is cleared.
+        // Discard those old events so the first callback represents a fresh
+        // displayed frame rather than replaying initialization-time IRQs.
+        VDP::Interrupt interrupt;
+        while (vdp().popInterrupt(interrupt)) {
+        }
+
+        while (!shouldQuit() && !frameLimitReached_) {
+            runVDPInterrupts();
+            pace();
+        }
+    }
+
+    void vSync() override {
+        game_.onVSync();
+        ++frameCount_;
+        frameLimitReached_ = frameLimit_ != 0 && frameCount_ >= frameLimit_;
+    }
+
+    void hSync(int scanline) override {
+        game_.onHSync(scanline);
     }
 
     std::string romPath_;
     unsigned frameLimit_;
+    unsigned frameCount_ = 0;
+    bool frameLimitReached_ = false;
     sample::platform::PlatformMemory gameMemory_;
     sample::SampleGame game_;
 };

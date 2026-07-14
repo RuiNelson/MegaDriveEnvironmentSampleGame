@@ -14,7 +14,9 @@ Start to restart.
 - subclassing `MegaDriveEnvironment` and starting it with `boot()`;
 - running game logic on the environment CPU thread and on the real-hardware
   68000;
-- synchronizing the game loop with VBlank;
+- overriding `vSync()` and `hSync(int)` in the PC environment application;
+- forwarding real-hardware IRQ6/IRQ4 to the same shared VBlank/HBlank methods;
+- creating a visible HBlank raster-wave effect on the Plane B floor;
 - configuring the VDP for H40 / Mode 5 output;
 - loading palettes, font data, and 4-bpp tiles;
 - drawing Plane A/Plane B text and backgrounds;
@@ -23,8 +25,8 @@ Start to restart.
 - modelling the player, collectible, enemy, collisions, and game session with
   portable C++ objects shared by both targets;
 - playing SN76489 PSG effects through the memory-mapped sound port;
-- running the exact same game loop and VDP renderer on both targets through one
-  24-bit memory API;
+- running the exact same interrupt-driven game callbacks and VDP renderer on
+  both targets through one 24-bit memory API;
 - generating and loading a raw 32-Mbit asset ROM;
 - compiling the C++ game to M68000 assembly and producing a bootable ROM for
   real hardware.
@@ -216,7 +218,7 @@ ROM header, manifest, vectors, or checksum.
 The 95 font tiles followed by the player, gem, and floor tiles occupy the final
 3232 bytes, at `$3FF360-$3FFFFF`. This keeps the lower ROM area available for
 the real-hardware executable code. CMake runs the script automatically, and the
-environment loads the generated binary at the beginning of `SampleGame::run()`.
+environment loads the generated binary before `SampleGame::initialize()`.
 
 Run the script directly with:
 
@@ -233,9 +235,8 @@ Game code uses the common `memory::Memory` contract. It defines 8/16/32-bit
 big-endian access, 24-bit address normalization, block reads/writes, overlapping
 copies, fills, and masked waits on memory-mapped registers.
 
-- `src/Memory-PC.cpp` forwards PC operations to
-  the thread-safe `SystemMemory` owned by `MegaDriveEnvironment`. Register
-  waits yield, and VBlank consumes the environment's VSync events.
+- `src/Memory-PC.cpp` forwards PC operations to the thread-safe `SystemMemory`
+  owned by `MegaDriveEnvironment` and yields during any masked register wait.
 - In the real-hardware build, `Memory.hpp` turns that same API into a
   concrete, stateless type. Its primitive `volatile` reads, writes, and masked
   busy-wait are forced inline, so there is no backend object, virtual dispatch,
@@ -252,10 +253,11 @@ ctest --test-dir build --output-on-failure
 ```
 
 `SampleGame`, `VdpUtils`, `ControllerReader`, `GameSession`, and
-`PsgSoundEffects` are compiled unchanged for both targets. VDP startup,
-rendering and VBlank synchronization use the same addresses and commands. The
-PSG player writes to `$C00011`, which reaches emulated audio on PC and the chip
-on a real Mega Drive.
+`PsgSoundEffects` are compiled unchanged for both targets. On PC,
+`EnvironmentApplication::vSync()` and `hSync(int)` forward to
+`SampleGame::onVSync()` and `onHSync()`. On real hardware, IRQ6 and IRQ4 forward
+to those same methods. The PSG player writes to `$C00011`, which reaches
+emulated audio on PC and the chip on a real Mega Drive.
 
 ## Memory management and the 64 KiB Work RAM budget
 
@@ -272,6 +274,9 @@ A real Mega Drive gives the 68000 only 64 KiB of Work RAM at
 staging buffers, and any custom allocator must all fit in that same physical
 region. The initial stack pointer is `$FFFFFC` and the stack grows downwards;
 there is no guard page to stop it from overwriting another Work RAM region.
+The real-hardware bootstrap reserves `$FF0000-$FF0003` for the active
+`SampleGame` pointer used by the IRQ4/IRQ6 bridges; future Work RAM layouts must
+preserve or deliberately relocate that slot.
 
 The correct design is therefore not necessarily "put everything on the stack"
 or "allocate everything manually". Decide a Work RAM budget before building the
@@ -375,18 +380,20 @@ later without changing game code.
   headers; namespaces provide the logical grouping without more directories.
 - `src/` contains all implementations. Unsuffixed files are shared unchanged
   by both targets; target-only files end in `-PC.cpp` or `-MD.cpp`.
-- `src/main-PC.cpp` parses the host CLI and supplies the adapter implemented by
-  `src/Memory-PC.cpp` before calling `boot()`.
+- `src/main-PC.cpp` parses the host CLI, overrides `vSync()`/`hSync(int)`, and
+  supplies the adapter implemented by `src/Memory-PC.cpp` before calling
+  `boot()`.
 - `src/main-MD.cpp` creates the zero-cost real-hardware `PlatformMemory` alias
   and uses the direct bus primitives from `src/Memory-MD.cpp`.
-- `SampleGame` owns the single frame loop, input, audio, and renderer used by
-  both targets.
+- `SampleGame` owns the shared VBlank/HBlank callbacks, input, audio, and
+  renderer used by both targets.
 - `GameSession.hpp` contains the shared `Player`, `Enemy`, `Collectible`,
   collision rules, scoring, and game-over state.
 - `PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
   gem, colliding with the enemy, and restarting.
 - `VdpUtils` contains shared memory-mapped VDP operations.
-- `megadrive/header.s` and `megadrive/main.s` are the hand-written assembly inputs.
+- `megadrive/header.s` contains the real-hardware IRQ4/IRQ6 bridges;
+  `megadrive/main.s` links the hand-written and generated assembly inputs.
 - `tools/build_megadrive_rom.py` builds and validates the ROM image for real
   hardware.
 - `Memory.hpp` is the only memory header; `Memory-PC.cpp` and `Memory-MD.cpp`

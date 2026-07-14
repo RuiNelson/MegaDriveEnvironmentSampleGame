@@ -55,24 +55,19 @@ void SampleGame::initialize() {
     render();
 }
 
-bool SampleGame::runFrame() {
-    if (!vdp::waitForVBlank(memory_)) {
-        return false;
-    }
+void SampleGame::onVSync() {
     update();
     render();
-    return true;
+    rasterPhase_ = static_cast<std::uint8_t>((rasterPhase_ + 1u) & 0x07u);
 }
 
-void SampleGame::run(unsigned frameLimit) {
-    initialize();
-    unsigned frameCount = 0;
-    while (frameLimit == 0 || frameCount < frameLimit) {
-        if (!runFrame()) {
-            break;
-        }
-        ++frameCount;
-    }
+void SampleGame::onHSync(int scanline) {
+    // Register $0A requests one HBlank IRQ per eight scanlines. Moving Plane B
+    // by a small triangular wave makes the interrupt visibly affect the floor
+    // without disturbing the HUD, player, gem or enemy on Plane A / the SAT.
+    const auto step = static_cast<unsigned>((scanline / 8 + rasterPhase_) & 0x07);
+    const auto triangle = step < 4u ? step : 8u - step;
+    vdp::writeHorizontalScroll(memory_, 0, static_cast<std::uint16_t>(triangle * 2u));
 }
 
 void SampleGame::initializeGraphics() {
