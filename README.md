@@ -12,7 +12,8 @@ Start to restart.
 
 - consuming `MegaDriveEnvironment` as a CMake subdirectory;
 - subclassing `MegaDriveEnvironment` and starting it with `boot()`;
-- running game logic on the cartridge/CPU thread;
+- running game logic on the environment CPU thread and on the real-hardware
+  68000;
 - synchronizing the game loop with VBlank;
 - configuring the VDP for H40 / Mode 5 output;
 - loading palettes, font data, and 4-bpp tiles;
@@ -25,7 +26,8 @@ Start to restart.
 - running the exact same game loop and VDP renderer on both targets through one
   24-bit memory API;
 - generating and loading a raw 32-Mbit asset ROM;
-- compiling the C++ game to M68000 assembly and producing a bootable cartridge ROM.
+- compiling the C++ game to M68000 assembly and producing a bootable ROM for
+  real hardware.
 
 The helper code in `VdpUtils` is intentionally explicit. It writes the VDP's
 memory-mapped ports through `memory::Memory`, so the same implementation runs
@@ -38,7 +40,7 @@ inside MegaDriveEnvironment and on the physical console.
 - SDL3 installed on the host;
 - `MegaDriveEnvironment` and this repository checked out side by side.
 
-The real Mega Drive build additionally requires Python 3, a host C compiler and
+The build for real hardware additionally requires Python 3, a host C compiler and
 `make`, plus:
 
 - [vasm](http://sun.hasenbraten.de/vasm), built as `vasmm68k_std`;
@@ -140,7 +142,7 @@ Useful development options:
 
 `--frames N` exits after N frames and is useful for smoke tests and CI.
 
-## Build the Mega Drive cartridge ROM
+## Build the Mega Drive ROM for real hardware
 
 ```bash
 ./build_megadrive.sh
@@ -152,10 +154,11 @@ The final image is written to:
 build/megadrive/MegaDriveEnvironmentSampleGame.bin
 ```
 
-It is an exact 4 MiB / 32 Mbit cartridge image with a standard Sega header,
+It is an exact 4 MiB / 32 Mbit ROM image with a standard Sega header,
 64-entry vector table, reset startup, IRQ vectors, M68000 game code, checksum,
 and the tile blob at `$3FF360-$3FFFFF`. It can be loaded directly by Mega Drive
-emulators or written to compatible flash-cartridge hardware.
+emulators or run on compatible real hardware—including by burning it to a
+physical ROM chip, like it's the '90s again. 👌
 
 The final object is assembled by vasm from four assembly inputs:
 
@@ -212,7 +215,7 @@ ROM header, manifest, vectors, or checksum.
 
 The 95 font tiles followed by the player, gem, and floor tiles occupy the final
 3232 bytes, at `$3FF360-$3FFFFF`. This keeps the lower ROM area available for
-the executable cartridge code. CMake runs the script automatically, and the
+the real-hardware executable code. CMake runs the script automatically, and the
 environment loads the generated binary at the beginning of `SampleGame::run()`.
 
 Run the script directly with:
@@ -233,13 +236,13 @@ copies, fills, and masked waits on memory-mapped registers.
 - `platform/megadrive_environment/PlatformMemory.cpp` forwards operations to
   the thread-safe `SystemMemory` owned by `MegaDriveEnvironment`. Register
   waits yield, and VBlank consumes the environment's VSync events.
-- In a cartridge build, `memory/Memory.hpp` turns that same API into a concrete,
-  stateless type. Its primitive `volatile` reads, writes, and masked busy-wait
-  are forced inline, so there is no backend object, virtual dispatch, or helper
-  subroutine around an individual 68000 bus instruction.
+- In the real-hardware build, `memory/Memory.hpp` turns that same API into a
+  concrete, stateless type. Its primitive `volatile` reads, writes, and masked
+  busy-wait are forced inline, so there is no backend object, virtual dispatch,
+  or helper subroutine around an individual 68000 bus instruction.
 
 `platform/PlatformMemory.hpp` exposes the PC adapter in a host build and an
-alias to `memory::Memory` in a cartridge build. `SAMPLE_FREESTANDING` selects
+alias to `memory::Memory` in a real-hardware build. `SAMPLE_FREESTANDING` selects
 the latter; its direct address-map accesses must never execute on the host.
 
 ```bash
@@ -278,7 +281,7 @@ game and give every use a bounded region and lifetime:
 | Persistent player, world, and subsystem state | Fixed objects or a reserved static region |
 | Temporary decompression or conversion data | Reusable scratch arena in Work RAM |
 | Variable enemies, projectiles, or effects | Fixed-capacity typed pools |
-| Immutable compressed assets and programs | Cartridge ROM until consumed |
+| Immutable compressed assets and programs | Game ROM until consumed |
 
 Direct members and fixed arrays are useful because their maximum size is known,
 but they are not automatically free of RAM cost. Their storage follows their
@@ -288,16 +291,16 @@ whole run. Large buffers should not become members of that stack object merely
 to avoid writing an allocator.
 
 A game that chooses a reserved static region must describe it in the linker
-script and initialize it during cartridge startup. Zero-initialized BSS must be
-cleared in Work RAM, while mutable initialized data normally needs an initial
-copy stored in ROM and copied to Work RAM. This sample needs neither operation
-and deliberately makes non-empty BSS a link error.
+script and initialize it during startup on real hardware. Zero-initialized BSS
+must be cleared in Work RAM, while mutable initialized data normally needs an
+initial copy stored in ROM and copied to Work RAM. This sample needs neither
+operation and deliberately makes non-empty BSS a link error.
 
-### Compressed cartridge data
+### Compressed ROM data
 
 Compressed graphics, sound data, and Z80 programs are good examples of data
 that need an explicit transfer plan. Keeping the compressed bytes in ROM saves
-cartridge space, but decompression may require mutable state or an output
+ROM space, but decompression may require mutable state or an output
 workspace before the result is sent to VRAM or Z80 RAM.
 
 Prefer a streaming decoder when the format permits it: read compressed bytes
@@ -317,13 +320,13 @@ sample instead chooses no heap, supplies no `operator new/delete`, and rejects
 BSS through its linker script; those are sample policies, not limitations of
 MegaDriveEnvironment or of Mega Drive software.
 
-### Important PC versus cartridge difference
+### Important PC versus real hardware difference
 
 On PC, shared C++ functions execute on the native host thread and their local
 variables use the native host stack. That stack is separate from the 64 KiB Work
 RAM array modelled by MegaDriveEnvironment and is normally much larger. A game
 can therefore run perfectly in MegaDriveEnvironment while a large local buffer,
-deep call chain, or recursion overflows the real cartridge stack.
+deep call chain, or recursion overflows the 68000 stack on real hardware.
 
 `memory::Memory` cannot fix this difference: it controls explicit bus reads and
 writes, not where the C++ implementation places automatic variables. Portable
@@ -331,8 +334,8 @@ C++ provides no way to redirect ordinary function frames into
 MegaDriveEnvironment's emulated Work RAM or to give the host stack exactly the
 68000 ABI's size and layout. Overriding `operator new` would only affect dynamic
 allocation, not local variables. An OS-specific small host thread stack can
-catch some mistakes, but it is not equivalent to the cartridge stack because
-the host ABI and runtime use different frame sizes.
+catch some mistakes, but it is not equivalent to the 68000 stack on real
+hardware because the host ABI and runtime use different frame sizes.
 
 Explicit arenas and pools can still behave identically on both targets: give
 the PC version the same capacities and failure rules, and represent scratch
@@ -378,11 +381,13 @@ later without changing game code.
 - `src/main-MD.cpp` only creates the bare-metal `PlatformMemory` and enters the
   shared game through the freestanding entry point.
 - `megadrive/header.s` and `megadrive/main.s` are the hand-written assembly inputs.
-- `tools/build_megadrive_rom.py` builds and validates the real cartridge image.
+- `tools/build_megadrive_rom.py` builds and validates the ROM image for real
+  hardware.
 - `memory/Memory.hpp` is the platform-neutral memory contract.
 - `controllers/ControllerReader.hpp` decodes controllers through that contract.
-- `platform/PlatformMemory.hpp` selects the host adapter or zero-cost cartridge
-  alias; the cartridge primitives themselves live inline in `memory/Memory.hpp`.
+- `platform/PlatformMemory.hpp` selects the host adapter or zero-cost
+  real-hardware alias; the real-hardware primitives themselves live inline in
+  `memory/Memory.hpp`.
 
 New features belong in the shared game and renderer. Platform code should only
 change when memory access or target bootstrapping itself changes.
