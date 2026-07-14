@@ -49,9 +49,12 @@ def encode_font_tile(glyph: tuple[int, ...]) -> bytes:
     """Convert one monochrome 8x8 glyph to a Mega Drive 4-bpp tile."""
     tile = bytearray()
     for row in glyph:
-        for pixel in range(7, 0, -2):
+        # font8x8_basic stores the leftmost pixel in bit 0. The VDP stores the
+        # left pixel in the high nibble and the adjacent right pixel in the low
+        # nibble, matching Font::fontCharToVDPTile in MegaDriveEnvironment.
+        for pixel in range(0, 8, 2):
             left = (row >> pixel) & 1
-            right = (row >> (pixel - 1)) & 1
+            right = (row >> (pixel + 1)) & 1
             tile.append((left << 4) | right)
     if len(tile) != TILE_SIZE:
         raise AssertionError("font tile encoding did not produce 32 bytes")

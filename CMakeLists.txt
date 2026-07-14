@@ -85,6 +85,13 @@ target_link_libraries(mega_drive_environment_sample_game PRIVATE
 
 include(CTest)
 if(BUILD_TESTING)
+    add_test(
+        NAME sample_asset_rom_encoding_test
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_build_asset_rom.py"
+                "${SAMPLE_FONT_DATA}"
+    )
+
     add_executable(sample_memory_test tests/MemoryTest.cpp)
     target_link_libraries(sample_memory_test PRIVATE sample_memory_megadrive_environment)
     add_test(NAME sample_memory_test COMMAND sample_memory_test)
