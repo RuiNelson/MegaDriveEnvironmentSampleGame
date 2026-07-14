@@ -21,6 +21,14 @@ cmake --build build
 ./build/mega_drive_environment_sample_game
 ```
 
+Prefer the repository entry points for normal PC workflows:
+
+```bash
+./build_pc.sh
+./configure_controls.sh
+./run_pc.sh
+```
+
 ```bash
 cmake -S . -B build \
   -DMEGADRIVE_ENVIRONMENT_DIR=/path/to/MegaDriveEnvironment

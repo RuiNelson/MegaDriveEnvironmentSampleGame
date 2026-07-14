@@ -17,7 +17,7 @@ configuration), collect the yellow gems, and press A or Start to reset.
 - drawing Plane A/Plane B text and backgrounds;
 - updating linked entries in the sprite attribute table;
 - reading Player 1 through the memory-mapped controller ports;
-- sharing one 24-bit memory API between the PC environment and real hardware.
+- sharing one 24-bit memory API between the PC environment and real hardware;
 - generating and loading a raw 32-Mbit asset ROM.
 
 The helper code in `VdpUtils` is intentionally explicit. It exposes the VDP
@@ -42,24 +42,28 @@ parent/
 ## Build and run
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-./build/mega_drive_environment_sample_game
+./build_pc.sh
+./run_pc.sh
 ```
 
-If the runtime is elsewhere, pass its path explicitly:
+The scripts resolve paths relative to their own location, so they can be called
+from any working directory. `configure_controls.sh` and `run_pc.sh` use the
+same project-root `controls.yaml`.
+
+Environment variables customize the PC build:
 
 ```bash
-cmake -S . -B build \
-  -DMEGADRIVE_ENVIRONMENT_DIR=/path/to/MegaDriveEnvironment
+BUILD_TYPE=Release ./build_pc.sh
+BUILD_DIR=/tmp/sample-build ./build_pc.sh
+MEGADRIVE_ENVIRONMENT_DIR=/path/to/MegaDriveEnvironment ./build_pc.sh
 ```
 
 Useful development options:
 
 ```bash
-./build/mega_drive_environment_sample_game --config-controls
-./build/mega_drive_environment_sample_game --debug
-./build/mega_drive_environment_sample_game --frames 10
+./configure_controls.sh
+./run_pc.sh --debug
+./run_pc.sh --frames 10
 ```
 
 `--frames N` exits after N frames and is useful for smoke tests and CI.
@@ -69,7 +73,7 @@ Useful development options:
 Run the interactive keyboard/gamepad configuration UI with:
 
 ```bash
-./build/mega_drive_environment_sample_game --config-controls
+./configure_controls.sh
 ```
 
 `--configControls` is also accepted for compatibility with
@@ -80,6 +84,12 @@ continues to see them through the emulated memory-mapped controller ports.
 
 The command line is parsed directly with the C++ standard library. This sample
 does not use CLI11 or another argument-processing dependency.
+
+The equivalent direct executable command remains available:
+
+```bash
+./build/mega_drive_environment_sample_game --config-controls
+```
 
 ## Raw asset ROM
 
