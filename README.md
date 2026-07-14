@@ -283,7 +283,28 @@ infrastructure such as `MegaDriveEnvironment`, SDL, or the command-line ROM path
 may allocate internally, but it does not change ownership inside the shared
 game.
 
-When extending the game:
+This allocation-free design is the model chosen by the sample, not a restriction
+of MegaDriveEnvironment. A new game may instead choose manual allocation, for
+example with a fixed-capacity arena or separate pools for enemies, projectiles,
+and effects. Choose the ownership model before building gameplay systems:
+
+- **Automatic/fixed storage:** objects are direct members or fixed-size arrays;
+  C++ scope and owner lifetime determine when their storage is available.
+- **Manual storage:** the game reserves a known Work RAM region and explicitly
+  acquires and releases slots from an arena or pool.
+
+A manual model may expose explicit `allocate/release` operations or deliberately
+provide complete `operator new/delete` implementations backed by that reserved
+storage. The sample omits them only because it chose the automatic model.
+
+A manual allocator must define its memory range, alignment, capacity,
+out-of-memory behaviour, and reset/destruction rules. It must not overlap the
+68000 stack, and the PC build should use the same capacities and allocation
+rules so that a game cannot succeed on PC but fail on the cartridge. Avoid
+mixing ownership models accidentally; any boundary between them should have one
+clearly documented owner.
+
+When extending this sample with its existing automatic-storage model:
 
 - store a new game object directly as a member of its owner;
 - for a bounded collection, use a fixed-size member array plus an active count;
@@ -294,9 +315,10 @@ When extending the game:
 - keep local buffers small because the cartridge has no stack-overflow guard.
 
 If a future game genuinely needs dynamic lifetimes, design one explicit,
-fixed-capacity pool or arena for both targets. Do not add an ad-hoc heap only to
-one platform, because that would make memory behaviour and failure modes differ
-between the PC build and the cartridge.
+fixed-capacity pool or arena for both targets as a deliberate architecture
+change. Do not add an ad-hoc heap only to one platform, because that would make
+memory behaviour and failure modes differ between the PC build and the
+cartridge.
 
 ## Shared controller reader
 
