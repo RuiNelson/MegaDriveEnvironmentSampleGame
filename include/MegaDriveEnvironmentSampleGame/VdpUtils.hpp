@@ -4,8 +4,11 @@
 #include <cstdint>
 #include <string_view>
 
-class SystemMemory;
 class VDP;
+
+namespace sample::memory {
+class Memory;
+}
 
 namespace sample::vdp {
 
@@ -23,7 +26,7 @@ void initialize(VDP &vdp);
 
 void loadPalette(VDP &vdp, std::uint8_t palette, const std::array<std::uint16_t, 16> &colors);
 void loadTile(VDP &vdp, std::uint16_t tileIndex, const std::array<std::uint32_t, 8> &rows);
-void loadFont(VDP &vdp, SystemMemory &memory, std::uint16_t firstTile);
+void loadFont(VDP &vdp, memory::Memory &memory, std::uint16_t firstTile);
 
 void fillPlane(VDP &vdp, std::uint16_t planeBase, std::uint16_t tileDescriptor);
 void writePlaneTile(VDP &vdp, std::uint16_t planeBase, int column, int row, std::uint16_t tileDescriptor);
@@ -52,4 +55,3 @@ void writeSprite(VDP &vdp,
 }
 
 } // namespace sample::vdp
-

@@ -1,8 +1,8 @@
 #include "MegaDriveEnvironmentSampleGame/VdpUtils.hpp"
 
+#include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
 #include "system/graphics/VDP.hpp"
-#include "system/memory/SystemMemory.hpp"
-#include "util/font/Font.hpp"
+#include "util/font/FontData.hpp"
 
 namespace sample::vdp {
 namespace {
@@ -84,14 +84,18 @@ void loadTile(VDP &vdp, std::uint16_t tileIndex, const std::array<std::uint32_t,
     }
 }
 
-void loadFont(VDP &vdp, SystemMemory &memory, std::uint16_t firstTile) {
+void loadFont(VDP &vdp, memory::Memory &memory, std::uint16_t firstTile) {
     constexpr int kPrintableCharacters = 0x7E - 0x20 + 1;
     for (int index = 0; index < kPrintableCharacters; ++index) {
-        Font::fontCharToVDPTile(memory,
-                               static_cast<std::uint8_t>(0x20 + index),
-                               1,
-                               0,
-                               kFontStagingAddress + static_cast<std::uint32_t>(index * 32));
+        const auto &glyph = font8x8_basic[index];
+        auto destination = kFontStagingAddress + static_cast<std::uint32_t>(index * 32);
+        for (const auto row : glyph) {
+            for (int pixel = 7; pixel >= 1; pixel -= 2) {
+                const auto left = static_cast<std::uint8_t>((row >> pixel) & 1u);
+                const auto right = static_cast<std::uint8_t>((row >> (pixel - 1)) & 1u);
+                memory.write8(destination++, static_cast<std::uint8_t>((left << 4) | right));
+            }
+        }
     }
     dmaFromRam(vdp,
                kFontStagingAddress,
@@ -152,4 +156,3 @@ void writeSprite(VDP &vdp,
 }
 
 } // namespace sample::vdp
-

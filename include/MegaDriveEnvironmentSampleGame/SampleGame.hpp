@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
 #include "system/MegaDriveEnvironment.hpp"
 
 namespace sample {
@@ -25,6 +26,8 @@ class SampleGame final : public MegaDriveEnvironment {
     bool frameReady_ = false;
     bool resetWasPressed_ = false;
 
+    platform::megadrive_environment::EnvironmentMemory gameMemory_;
+
     int playerX_ = 40;
     int playerY_ = 104;
     int gemX_ = 240;
@@ -33,4 +36,3 @@ class SampleGame final : public MegaDriveEnvironment {
 };
 
 } // namespace sample
-

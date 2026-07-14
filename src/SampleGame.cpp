@@ -58,7 +58,7 @@ bool overlaps(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
 } // namespace
 
 SampleGame::SampleGame(unsigned frameLimit)
-    : MegaDriveEnvironment(VDP::VSync, VDP::Integer), frameLimit_(frameLimit) {
+    : MegaDriveEnvironment(VDP::VSync, VDP::Integer), frameLimit_(frameLimit), gameMemory_(memory()) {
 }
 
 void SampleGame::run() {
@@ -101,7 +101,7 @@ void SampleGame::initializeGraphics() {
     vdp::loadPalette(video, 1, kPlayerPalette);
     vdp::loadPalette(video, 2, kGemPalette);
     vdp::loadPalette(video, 3, kFloorPalette);
-    vdp::loadFont(video, memory(), kFontTile);
+    vdp::loadFont(video, gameMemory_, kFontTile);
 
     for (std::size_t index = 0; index < kPlayerTiles.size(); ++index) {
         vdp::loadTile(video, static_cast<std::uint16_t>(kPlayerTile + index), kPlayerTiles[index]);

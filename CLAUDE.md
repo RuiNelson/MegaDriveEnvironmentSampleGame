@@ -4,10 +4,11 @@ Guidance for agents working in `MegaDriveEnvironmentSampleGame`.
 
 ## Purpose
 
-This repository is a deliberately small example game for
-`MegaDriveEnvironment`. Keep the code readable and focused on showing how a
-consumer integrates the environment, configures the VDP, reads a controller,
-updates game state, and renders sprites and text.
+This repository is a deliberately small dual-target game for the local
+`MegaDriveEnvironment` and real Mega Drive hardware. Keep the shared game code
+portable and the target-specific implementations explicit. The environment
+target currently demonstrates VDP setup, controller input, game state, sprites,
+and text; the real-hardware target is being added subsystem by subsystem.
 
 ## Build
 
@@ -30,5 +31,8 @@ cmake -S . -B build \
 - Use C++23.
 - Include only public `MegaDriveEnvironment` headers.
 - Keep hardware-facing helpers in `VdpUtils`; keep game rules in `SampleGame`.
+- Keep shared platform contracts under `memory/` and target implementations
+  under `platform/megadrive_environment/` or `platform/megadrive/`.
+- Never execute `HardwareMemory` on the host; it dereferences the real 68000
+  address map directly.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.
-

@@ -23,6 +23,26 @@ add_subdirectory(
     "${CMAKE_BINARY_DIR}/MegaDriveEnvironment"
 )
 
+add_library(sample_memory_common STATIC src/memory/Memory.cpp)
+target_include_directories(sample_memory_common PUBLIC include)
+
+add_library(sample_memory_megadrive_environment STATIC
+    src/platform/megadrive_environment/EnvironmentMemory.cpp
+)
+target_include_directories(sample_memory_megadrive_environment PUBLIC include)
+target_link_libraries(sample_memory_megadrive_environment PUBLIC
+    sample_memory_common
+    MegaDriveEnvironment::MegaDriveEnvironment
+)
+
+# This backend has no host dependencies. Compiling it here catches API drift;
+# it is linked into the ROM target once the 68000 toolchain/startup is added.
+add_library(sample_memory_megadrive_hardware STATIC
+    src/platform/megadrive/HardwareMemory.cpp
+)
+target_include_directories(sample_memory_megadrive_hardware PUBLIC include)
+target_link_libraries(sample_memory_megadrive_hardware PUBLIC sample_memory_common)
+
 add_executable(mega_drive_environment_sample_game
     src/main.cpp
     src/SampleGame.cpp
@@ -31,6 +51,12 @@ add_executable(mega_drive_environment_sample_game
 
 target_include_directories(mega_drive_environment_sample_game PRIVATE include)
 target_link_libraries(mega_drive_environment_sample_game PRIVATE
-    MegaDriveEnvironment::MegaDriveEnvironment
+    sample_memory_megadrive_environment
 )
 
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(sample_memory_test tests/MemoryTest.cpp)
+    target_link_libraries(sample_memory_test PRIVATE sample_memory_megadrive_environment)
+    add_test(NAME sample_memory_test COMMAND sample_memory_test)
+endif()

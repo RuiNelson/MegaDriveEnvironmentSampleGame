@@ -17,6 +17,7 @@ configuration), collect the yellow gems, and press A or Start to reset.
 - drawing Plane A/Plane B text and backgrounds;
 - updating linked entries in the sprite attribute table;
 - reading Player 1 through `controllers().getCurrentState()`.
+- sharing one 24-bit memory API between the PC environment and real hardware.
 
 The helper code in `VdpUtils` is intentionally explicit. It exposes the VDP
 register and port operations so the project can serve as a starting point for
@@ -61,11 +62,37 @@ Useful development options:
 
 `--frames N` exits after N frames and is useful for smoke tests and CI.
 
+## Two memory backends
+
+Game code uses the common `memory::Memory` contract. It defines 8/16/32-bit
+big-endian access, 24-bit address normalization, block reads/writes, overlapping
+copies, and fills.
+
+- `EnvironmentMemory` forwards those operations to the thread-safe
+  `SystemMemory` owned by `MegaDriveEnvironment`.
+- `HardwareMemory` performs direct `volatile` reads and writes on the real
+  68000 address bus.
+
+The host build compiles both backends and runs tests against the environment
+backend. `HardwareMemory` must never be executed on the host.
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+This is the first shared platform layer. Producing a bootable cartridge ROM
+still requires real-hardware implementations for startup/vector tables, VDP,
+controllers, interrupts and audio, plus a selected 68000 compiler and linker
+script. Those pieces are intentionally not hidden behind a fake “ROM build”.
+
 ## Code tour
 
 - `src/main.cpp` parses the tiny host-side CLI and calls `boot()`.
 - `SampleGame` owns game state, input, collision, and the frame loop.
-- `VdpUtils` contains reusable, hardware-facing VDP operations.
+- `VdpUtils` contains the environment target's VDP operations.
+- `memory/Memory.hpp` is the platform-neutral memory contract.
+- `platform/megadrive_environment` and `platform/megadrive` contain the two
+  memory implementations.
 
 Start by changing the tile patterns and palettes in `SampleGame.cpp`, then add
 new game state in `update()` and render it in `render()`.
