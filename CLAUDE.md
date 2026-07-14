@@ -7,8 +7,8 @@ Guidance for agents working in `MegaDriveEnvironmentSampleGame`.
 This repository is a deliberately small dual-target game for the local
 `MegaDriveEnvironment` and real Mega Drive hardware. Keep the shared game code
 portable and the target-specific implementations explicit. The environment
-target currently demonstrates VDP setup, controller input, game state, sprites,
-and text; the real-hardware target is being added subsystem by subsystem.
+target and the bootable cartridge ROM both demonstrate VDP setup, controller
+input, game state, sprites, and text.
 
 ## Build
 
@@ -29,6 +29,16 @@ Prefer the repository entry points for normal PC workflows:
 ./run_pc.sh
 ```
 
+Build the real Mega Drive ROM with:
+
+```bash
+./build_megadrive.sh
+```
+
+The cartridge pipeline requires `vasmm68k_std` plus the `m68k-elf` GCC and
+binutils tools. `tools/build_megadrive_rom.py` owns the compilation, assembly,
+link, checksum, and structural validation steps.
+
 ```bash
 cmake -S . -B build \
   -DMEGADRIVE_ENVIRONMENT_DIR=/path/to/MegaDriveEnvironment
@@ -45,8 +55,10 @@ cmake -S . -B build \
   not SDL or `Controllers::getCurrentState()` directly.
 - Keep command-line processing dependency-free; extend the manual parser in
   `src/main.cpp` instead of adding CLI11 or another argument library.
-- `tools/build_asset_rom.py` owns the raw asset ROM layout. Keep it headerless
-  and manifest-free until the project explicitly introduces a ROM header.
+- `tools/build_asset_rom.py` owns the raw, headerless asset ROM layout. The
+  separate cartridge builder embeds its trailing tile blob in a bootable ROM.
+- Keep the hand-written vector table and Sega header in `megadrive/header.s`.
+  `code.s` and `blobs.s` are generated build artifacts and must not be committed.
 - Never execute `HardwareMemory` on the host; it dereferences the real 68000
   address map directly.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

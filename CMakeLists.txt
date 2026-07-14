@@ -38,7 +38,7 @@ target_link_libraries(sample_memory_megadrive_environment PUBLIC
 )
 
 # This backend has no host dependencies. Compiling it here catches API drift;
-# it is linked into the ROM target once the 68000 toolchain/startup is added.
+# build_megadrive.sh compiles it again for the 68000 cartridge target.
 add_library(sample_memory_megadrive_hardware STATIC
     src/platform/megadrive/HardwareMemory.cpp
 )

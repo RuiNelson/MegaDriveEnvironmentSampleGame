@@ -1,7 +1,5 @@
 #include "MegaDriveEnvironmentSampleGame/platform/megadrive/HardwareMemory.hpp"
 
-#include <cstdint>
-
 namespace sample::platform::megadrive {
 namespace {
 

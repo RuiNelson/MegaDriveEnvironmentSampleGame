@@ -2,8 +2,6 @@
 
 #include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
 
-#include <cstdint>
-
 namespace sample::controllers {
 
 enum class Player : std::uint8_t {
