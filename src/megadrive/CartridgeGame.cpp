@@ -135,7 +135,9 @@ void writeSprite(int index,
 }
 
 void initializeVdp() {
-    writeVdpRegister(0x00, 0x00);
+    // Select the full 3-bit-per-channel CRAM palette. With bit 2 clear,
+    // real VDPs only use one bit from each colour component.
+    writeVdpRegister(0x00, 0x04);
     writeVdpRegister(0x01, 0x14); // display disabled, DMA, Mode 5
     writeVdpRegister(0x02, 0x30); // Plane A at 0xC000
     writeVdpRegister(0x03, 0x2C); // Window at 0xB000

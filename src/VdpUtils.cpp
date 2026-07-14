@@ -35,7 +35,9 @@ void setCramWrite(VDP &vdp, std::uint16_t address) {
 
 void initialize(VDP &vdp) {
     vdp.reset();
-    writeRegister(vdp, 0x00, 0x00);
+    // Select the full 3-bit-per-channel CRAM palette. With bit 2 clear,
+    // real VDPs only use one bit from each colour component.
+    writeRegister(vdp, 0x00, 0x04);
     writeRegister(vdp, 0x01, 0x74); // display, VBlank IRQ, DMA, Mode 5
     writeRegister(vdp, 0x02, 0x30); // Plane A at 0xC000
     writeRegister(vdp, 0x03, 0x2C); // Window at 0xB000
