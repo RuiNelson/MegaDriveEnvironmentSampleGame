@@ -18,6 +18,7 @@ configuration), collect the yellow gems, and press A or Start to reset.
 - updating linked entries in the sprite attribute table;
 - reading Player 1 through the memory-mapped controller ports;
 - sharing one 24-bit memory API between the PC environment and real hardware.
+- generating and loading a raw 32-Mbit asset ROM.
 
 The helper code in `VdpUtils` is intentionally explicit. It exposes the VDP
 register and port operations so the project can serve as a starting point for
@@ -61,6 +62,26 @@ Useful development options:
 ```
 
 `--frames N` exits after N frames and is useful for smoke tests and CI.
+
+## Raw asset ROM
+
+`tools/build_asset_rom.py` generates `build/sample_game_assets.bin`. It is a
+raw 4 MiB (32 Mbit) image filled with `0xFF`: it contains no executable code,
+ROM header, manifest, vectors, or checksum.
+
+The 95 font tiles followed by the player, gem, and floor tiles occupy the final
+3232 bytes, at `$3FF360-$3FFFFF`. This keeps the whole lower ROM area available
+for game code later. CMake runs the script automatically, and the environment
+loads the generated binary at the beginning of `SampleGame::run()`.
+
+Run the script directly with:
+
+```bash
+python3 tools/build_asset_rom.py \
+  --output build/sample_game_assets.bin
+```
+
+An alternative image can be selected with `--rom FILE`.
 
 ## Two memory backends
 

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <utility>
 
 namespace sample {
 namespace {
@@ -16,27 +17,19 @@ constexpr std::uint16_t kPlayerTile = 96;
 constexpr std::uint16_t kGemTile = 100;
 constexpr std::uint16_t kFloorTile = 101;
 
+constexpr std::uint16_t kFontTileCount = 95;
+constexpr std::uint16_t kPlayerRomTile = 95;
+constexpr std::uint16_t kGemRomTile = 99;
+constexpr std::uint16_t kFloorRomTile = 100;
+constexpr std::uint32_t kRomSize = 4 * 1024 * 1024;
+constexpr std::uint32_t kRomTileCount = 101;
+constexpr std::uint32_t kRomTileData = kRomSize - kRomTileCount * 32;
+
 constexpr int kPlayerSize = 16;
 constexpr int kGemSize = 8;
 constexpr int kScreenWidth = 320;
 constexpr int kScreenHeight = 224;
 constexpr int kHudHeight = 32;
-
-// Each uint32_t is one 8-pixel row: one hexadecimal nibble per palette index.
-constexpr std::array<std::array<std::uint32_t, 8>, 4> kPlayerTiles{{
-    {0x00011111, 0x00112222, 0x01122222, 0x01222222, 0x11222222, 0x12222222, 0x12221111, 0x12211111},
-    {0x12211111, 0x12222222, 0x01222222, 0x01122222, 0x00112222, 0x00011222, 0x00001111, 0x00000110},
-    {0x11111000, 0x22221100, 0x22222110, 0x22222110, 0x22222211, 0x22222221, 0x11112221, 0x11111221},
-    {0x11111221, 0x22222221, 0x22222210, 0x22222110, 0x22221100, 0x22211000, 0x11110000, 0x01100000},
-}};
-
-constexpr std::array<std::uint32_t, 8> kGemRows{
-    0x00011000, 0x00122100, 0x01233210, 0x12333321, 0x01233210, 0x00122100, 0x00011000, 0x00000000,
-};
-
-constexpr std::array<std::uint32_t, 8> kFloorRows{
-    0x11111111, 0x10000001, 0x10011001, 0x10100101, 0x10100101, 0x10011001, 0x10000001, 0x11111111,
-};
 
 constexpr std::array<std::uint16_t, 16> kTextPalette{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -57,14 +50,16 @@ bool overlaps(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
 
 } // namespace
 
-SampleGame::SampleGame(unsigned frameLimit)
+SampleGame::SampleGame(std::string romPath, unsigned frameLimit)
     : MegaDriveEnvironment(VDP::VSync, VDP::Integer),
+      romPath_(std::move(romPath)),
       frameLimit_(frameLimit),
       gameMemory_(memory()),
       player1Controller_(gameMemory_, controllers::Player::One) {
 }
 
 void SampleGame::run() {
+    loadROM(romPath_);
     player1Controller_.initialize();
     initializeGraphics();
     render();
@@ -105,13 +100,11 @@ void SampleGame::initializeGraphics() {
     vdp::loadPalette(video, 1, kPlayerPalette);
     vdp::loadPalette(video, 2, kGemPalette);
     vdp::loadPalette(video, 3, kFloorPalette);
-    vdp::loadFont(video, gameMemory_, kFontTile);
-
-    for (std::size_t index = 0; index < kPlayerTiles.size(); ++index) {
-        vdp::loadTile(video, static_cast<std::uint16_t>(kPlayerTile + index), kPlayerTiles[index]);
-    }
-    vdp::loadTile(video, kGemTile, kGemRows);
-    vdp::loadTile(video, kFloorTile, kFloorRows);
+    vdp::loadTilesFromRom(video, gameMemory_, kRomTileData, kFontTile, kFontTileCount);
+    vdp::loadTilesFromRom(
+        video, gameMemory_, kRomTileData + kPlayerRomTile * 32, kPlayerTile, 4);
+    vdp::loadTilesFromRom(video, gameMemory_, kRomTileData + kGemRomTile * 32, kGemTile, 1);
+    vdp::loadTilesFromRom(video, gameMemory_, kRomTileData + kFloorRomTile * 32, kFloorTile, 1);
 
     vdp::fillPlane(video, vdp::kPlaneA, vdp::tileDescriptor(0));
     vdp::fillPlane(video, vdp::kPlaneB, vdp::tileDescriptor(kFloorTile, 3));

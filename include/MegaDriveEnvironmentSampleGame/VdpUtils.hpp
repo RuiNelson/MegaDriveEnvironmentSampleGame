@@ -25,8 +25,11 @@ void setCramWrite(VDP &vdp, std::uint16_t address);
 void initialize(VDP &vdp);
 
 void loadPalette(VDP &vdp, std::uint8_t palette, const std::array<std::uint16_t, 16> &colors);
-void loadTile(VDP &vdp, std::uint16_t tileIndex, const std::array<std::uint32_t, 8> &rows);
-void loadFont(VDP &vdp, memory::Memory &memory, std::uint16_t firstTile);
+void loadTilesFromRom(VDP &vdp,
+                      memory::Memory &memory,
+                      std::uint32_t romAddress,
+                      std::uint16_t firstVramTile,
+                      std::uint16_t tileCount);
 
 void fillPlane(VDP &vdp, std::uint16_t planeBase, std::uint16_t tileDescriptor);
 void writePlaneTile(VDP &vdp, std::uint16_t planeBase, int column, int row, std::uint16_t tileDescriptor);

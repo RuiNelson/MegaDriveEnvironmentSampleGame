@@ -2,15 +2,12 @@
 
 #include "MegaDriveEnvironmentSampleGame/memory/Memory.hpp"
 #include "system/graphics/VDP.hpp"
-#include "util/font/FontData.hpp"
 
 namespace sample::vdp {
 namespace {
 
-constexpr std::uint32_t kFontStagingAddress = 0xFF0000;
 constexpr std::uint8_t kVramWrite = 0x01;
 constexpr std::uint8_t kCramWrite = 0x03;
-constexpr std::uint8_t kDma = 0x20;
 
 std::uint16_t commandWord1(std::uint8_t code, std::uint16_t address) {
     return static_cast<std::uint16_t>(((code & 0x03u) << 14) | (address & 0x3FFFu));
@@ -18,19 +15,6 @@ std::uint16_t commandWord1(std::uint8_t code, std::uint16_t address) {
 
 std::uint16_t commandWord2(std::uint8_t code, std::uint16_t address) {
     return static_cast<std::uint16_t>(((code & 0x3Cu) << 2) | ((address >> 14) & 0x03u));
-}
-
-void dmaFromRam(VDP &vdp, std::uint32_t source, std::uint16_t destination, std::uint16_t wordCount) {
-    const std::uint32_t sourceWord = source >> 1;
-    writeRegister(vdp, 0x13, static_cast<std::uint8_t>(wordCount));
-    writeRegister(vdp, 0x14, static_cast<std::uint8_t>(wordCount >> 8));
-    writeRegister(vdp, 0x15, static_cast<std::uint8_t>(sourceWord));
-    writeRegister(vdp, 0x16, static_cast<std::uint8_t>(sourceWord >> 8));
-    writeRegister(vdp, 0x17, static_cast<std::uint8_t>((sourceWord >> 16) & 0x7F));
-
-    const auto command = static_cast<std::uint8_t>(kVramWrite | kDma);
-    vdp.writeControlPort(commandWord1(command, destination));
-    vdp.writeControlPort(commandWord2(command, destination));
 }
 
 } // namespace
@@ -76,31 +60,16 @@ void loadPalette(VDP &vdp, std::uint8_t palette, const std::array<std::uint16_t,
     }
 }
 
-void loadTile(VDP &vdp, std::uint16_t tileIndex, const std::array<std::uint32_t, 8> &rows) {
-    setVramWrite(vdp, static_cast<std::uint16_t>(tileIndex * 32));
-    for (const auto row : rows) {
-        vdp.writeDataPort(static_cast<std::uint16_t>(row >> 16));
-        vdp.writeDataPort(static_cast<std::uint16_t>(row));
+void loadTilesFromRom(VDP &vdp,
+                      memory::Memory &memory,
+                      std::uint32_t romAddress,
+                      std::uint16_t firstVramTile,
+                      std::uint16_t tileCount) {
+    setVramWrite(vdp, static_cast<std::uint16_t>(firstVramTile * 32));
+    const auto wordCount = static_cast<std::uint32_t>(tileCount) * 16;
+    for (std::uint32_t word = 0; word < wordCount; ++word) {
+        vdp.writeDataPort(memory.read16(romAddress + word * 2));
     }
-}
-
-void loadFont(VDP &vdp, memory::Memory &memory, std::uint16_t firstTile) {
-    constexpr int kPrintableCharacters = 0x7E - 0x20 + 1;
-    for (int index = 0; index < kPrintableCharacters; ++index) {
-        const auto &glyph = font8x8_basic[index];
-        auto destination = kFontStagingAddress + static_cast<std::uint32_t>(index * 32);
-        for (const auto row : glyph) {
-            for (int pixel = 7; pixel >= 1; pixel -= 2) {
-                const auto left = static_cast<std::uint8_t>((row >> pixel) & 1u);
-                const auto right = static_cast<std::uint8_t>((row >> (pixel - 1)) & 1u);
-                memory.write8(destination++, static_cast<std::uint8_t>((left << 4) | right));
-            }
-        }
-    }
-    dmaFromRam(vdp,
-               kFontStagingAddress,
-               static_cast<std::uint16_t>(firstTile * 32),
-               static_cast<std::uint16_t>(kPrintableCharacters * 16));
 }
 
 void fillPlane(VDP &vdp, std::uint16_t planeBase, std::uint16_t descriptor) {

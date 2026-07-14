@@ -4,11 +4,13 @@
 #include "MegaDriveEnvironmentSampleGame/platform/megadrive_environment/EnvironmentMemory.hpp"
 #include "system/MegaDriveEnvironment.hpp"
 
+#include <string>
+
 namespace sample {
 
 class SampleGame final : public MegaDriveEnvironment {
   public:
-    explicit SampleGame(unsigned frameLimit = 0);
+    explicit SampleGame(std::string romPath, unsigned frameLimit = 0);
 
   protected:
     void run() override;
@@ -22,6 +24,7 @@ class SampleGame final : public MegaDriveEnvironment {
     void moveGem();
     void reset();
 
+    std::string romPath_;
     unsigned frameLimit_ = 0;
     unsigned frameCount_ = 0;
     bool frameReady_ = false;
