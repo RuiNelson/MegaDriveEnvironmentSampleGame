@@ -1,6 +1,7 @@
 /build/
 /.cache/
 compile_commands.json
+controls.yaml
 *.png
 *.pyc
 __pycache__/
