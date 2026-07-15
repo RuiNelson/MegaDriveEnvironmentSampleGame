@@ -45,8 +45,11 @@ void initialize(memory::Memory &memory);
 /** Enables the display after palettes, tiles and planes have been populated. */
 void finishInitialization(memory::Memory &memory);
 
-/** Updates the full-screen horizontal offsets for Plane A and Plane B. */
-void writeHorizontalScroll(memory::Memory &memory, std::uint16_t planeA, std::uint16_t planeB);
+/** Updates the Plane A and Plane B horizontal offsets for one scanline. */
+void writeHorizontalScrollLine(memory::Memory &memory,
+                               int scanline,
+                               std::uint16_t planeA,
+                               std::uint16_t planeB);
 
 /**
  * Loads all 16 colors of a hardware palette.

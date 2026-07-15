@@ -46,6 +46,12 @@ class SampleGame final {
     /** Writes the current model state to Plane A and the sprite table. */
     void render();
 
+    /** Draws the deliberately unavoidable EU cookie-consent notice. */
+    void renderCookieBanner();
+
+    /** Erases the cookie notice before normal gameplay is shown. */
+    void clearCookieBanner();
+
     /** Shared bus used for ROM, controller, PSG and VDP accesses. */
     memory::Memory &memory_;
     /** Memory-mapped three-button controller decoder. */
@@ -54,8 +60,14 @@ class SampleGame final {
     game::GameSession session_;
     /** Frame-driven SN76489 effect sequencer. */
     audio::PsgSoundEffects soundEffects_;
-    /** Advances the Plane B raster-wave pattern once per displayed frame. */
-    std::uint8_t rasterPhase_ = 0;
+    /** Moves the Plane B wave vertically without scrolling Plane A. */
+    std::uint8_t backgroundWavePhase_ = 0;
+    /** Keeps gameplay paused until the player accepts the satirical notice. */
+    bool cookieConsentAccepted_ = false;
+    /** Prevents the acceptance press from also resetting the game. */
+    bool waitingForConsentButtonRelease_ = false;
+    /** Requests one cleanup pass when gameplay replaces the notice. */
+    bool cookieBannerNeedsClear_ = false;
 };
 
 } // namespace sample
