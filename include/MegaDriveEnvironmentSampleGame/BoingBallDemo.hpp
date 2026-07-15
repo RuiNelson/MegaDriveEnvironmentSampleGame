@@ -48,7 +48,7 @@ class BoingBallDemo final {
 
   private:
     struct SurfacePoint {
-        /** Red shade in the high nibble and white shade in the low nibble. */
+        /** Red shade in the high nibble and blue shade in the low nibble. */
         std::uint8_t colors;
         /** Approximate texture longitude in 32 angular steps. */
         std::uint8_t longitude;

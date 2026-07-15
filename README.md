@@ -18,7 +18,7 @@ Start there to return.
 - overriding `vSync()` and `hSync(int)` in the PC environment application;
 - forwarding real-hardware IRQ6/IRQ4 to the same shared VBlank/HBlank methods;
 - creating a visible HBlank raster-wave effect on the Plane B floor;
-- rendering a rotating, bouncing 96x96 3D checker ball in software;
+- rendering a rotating, bouncing 96x96 red-and-blue checker ball in software;
 - expanding a 48x48 logical raster 2x2 and transferring its 144 dynamic tiles
   from fixed Work RAM to VRAM with VDP DMA;
 - composing the ball and its dithered ground shadow from linked hardware sprites;
@@ -49,8 +49,8 @@ inside MegaDriveEnvironment and on the physical console.
 After accepting the opening notice, press Start from gameplay to open the
 Boing Ball screen. The ball is 96 pixels wide—30% of the H40 display—and uses
 no pre-rendered animation frames. A 48x48 fixed-point sphere lookup supplies
-pre-shaded colours, longitude and latitude; the shared C++ renderer rotates its
-checker texture around theta and phi, expands each logical pixel to a 2x2
+pre-shaded red and blue colours, longitude and latitude; the shared C++ renderer
+rotates its checker texture around theta and phi, expands each logical pixel to a 2x2
 block, and packs the result as 144 VDP tiles. Nine 4x4 sprites display those
 tiles as one large ball, while three more sprites form the 96x8 dithered
 shadow. Plane B draws the upright grid and the Window plane draws the
