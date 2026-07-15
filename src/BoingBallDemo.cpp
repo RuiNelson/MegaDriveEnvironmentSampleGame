@@ -270,10 +270,8 @@ BounceEvents BoingBallDemo::update(bool zoomIn, bool zoomOut) {
         events.hitFloor = true;
     }
 
-    rotationTick_ = static_cast<std::uint8_t>((rotationTick_ + 1u) & 3u);
-    if ((rotationTick_ & 1u) == 0) {
-        thetaPhase_ = static_cast<std::uint8_t>((thetaPhase_ + 1u) & 31u);
-    }
+    thetaPhase_ = static_cast<std::uint8_t>((thetaPhase_ + 1u) & 31u);
+    rotationTick_ = static_cast<std::uint8_t>((rotationTick_ + 1u) & 7u);
     if (rotationTick_ == 0) {
         phiPhase_ = static_cast<std::uint8_t>((phiPhase_ + 1u) & 31u);
     }

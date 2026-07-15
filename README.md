@@ -57,7 +57,8 @@ the shared C++ renderer evaluates the white/red texture at the requested
 display resolution without first producing and enlarging a smaller image. A
 direct colour table resolves both rotation axes, shading, rim and transparency
 once per surface, and each eight-pixel tile row is packed into one 32-bit Work
-RAM write.
+RAM write. Theta advances every VBlank while phi advances once every eight,
+making the two-axis rotation clearly visible.
 
 Only the visible tile rectangle is built: 64 pixels uses 64 tiles, the default
 96 pixels uses 144, and 128 pixels uses 256. A variable number of linked sprites
