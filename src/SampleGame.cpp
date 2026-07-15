@@ -23,6 +23,10 @@ constexpr std::uint16_t kPlayerRomTile = 95;
 constexpr std::uint16_t kGemRomTile = 99;
 constexpr std::uint16_t kFloorRomTile = 100;
 
+constexpr int kCookieBannerFirstRow = 7;
+constexpr int kCookieBannerLastRow = 20;
+constexpr const char *kBlankScreenRow = "                                        ";
+
 // Both ROM formats are 32 Mbit and place the same packed tile blob at the end.
 constexpr std::uint32_t kRomSize = 4 * 1024 * 1024;
 constexpr std::uint32_t kRomTileCount = 101;
@@ -58,16 +62,31 @@ void SampleGame::initialize() {
 void SampleGame::onVSync() {
     update();
     render();
-    rasterPhase_ = static_cast<std::uint8_t>((rasterPhase_ + 1u) & 0x07u);
+    backgroundWavePhase_ = static_cast<std::uint8_t>((backgroundWavePhase_ + 1u) & 0x3Fu);
 }
 
 void SampleGame::onHSync(int scanline) {
-    // Register $0A requests one HBlank IRQ per eight scanlines. Moving Plane B
-    // by a small triangular wave makes the interrupt visibly affect the floor
-    // without disturbing the HUD, player, gem or enemy on Plane A / the SAT.
-    const auto step = static_cast<unsigned>((scanline / 8 + rasterPhase_) & 0x07);
-    const auto triangle = step < 4u ? step : 8u - step;
-    vdp::writeHorizontalScroll(memory_, 0, static_cast<std::uint16_t>(triangle * 2u));
+    // Each callback covers a small block to keep the real 68000 IRQ handler
+    // comfortably shorter than the HBlank interval. Every line still gets an
+    // independent Plane B offset; Plane A remains fixed.
+    const int firstScanline = scanline - (vdp::kHSyncLineBatch - 1);
+    for (int currentScanline = firstScanline; currentScanline <= scanline; ++currentScanline) {
+        if (currentScanline < 0) {
+            continue;
+        }
+        const auto step = static_cast<unsigned>((currentScanline + backgroundWavePhase_) & 0x3F);
+        int offset;
+        if (step < 16u) {
+            offset = static_cast<int>(step);
+        } else if (step < 32u) {
+            offset = static_cast<int>(32u - step);
+        } else if (step < 48u) {
+            offset = -static_cast<int>(step - 32u);
+        } else {
+            offset = -static_cast<int>(64u - step);
+        }
+        vdp::writeHorizontalScrollLine(memory_, currentScanline, 0, static_cast<std::uint16_t>(offset));
+    }
 }
 
 void SampleGame::initializeGraphics() {
@@ -93,7 +112,29 @@ void SampleGame::initializeGraphics() {
 void SampleGame::update() {
     // Advance the previous effect before a newly emitted event replaces it.
     soundEffects_.update();
-    const auto events = session_.update(player1Controller_.read());
+    const auto controls = player1Controller_.read();
+
+    if (!cookieConsentAccepted_) {
+        // In keeping with the joke, A and Start are presented as different
+        // choices but both accept exactly the same terms.
+        if (controls.a || controls.start) {
+            cookieConsentAccepted_ = true;
+            waitingForConsentButtonRelease_ = true;
+            cookieBannerNeedsClear_ = true;
+        }
+        return;
+    }
+
+    // Do not leak the acceptance input into GameSession, where A/Start is the
+    // reset command. Resume only after the player releases the chosen button.
+    if (waitingForConsentButtonRelease_) {
+        if (controls.a || controls.start) {
+            return;
+        }
+        waitingForConsentButtonRelease_ = false;
+    }
+
+    const auto events = session_.update(controls);
     if (events.restarted()) {
         soundEffects_.playRestart();
     } else if (events.gameOverStarted()) {
@@ -104,6 +145,16 @@ void SampleGame::update() {
 }
 
 void SampleGame::render() {
+    if (!cookieConsentAccepted_) {
+        renderCookieBanner();
+        return;
+    }
+
+    if (cookieBannerNeedsClear_) {
+        clearCookieBanner();
+        cookieBannerNeedsClear_ = false;
+    }
+
     // Avoid snprintf, division and initialized local arrays (which can make a
     // freestanding compiler request memcpy) in this shared renderer.
     vdp::writeText(memory_, vdp::kPlaneA, 15, 3, "SCORE ", kFontTile);
@@ -137,6 +188,32 @@ void SampleGame::render() {
     vdp::writeSprite(memory_, 0, player.x(), player.y(), 2, 2, kPlayerTile, 1, 1);
     vdp::writeSprite(memory_, 1, gem.x(), gem.y(), 1, 1, kGemTile, 2, 2);
     vdp::writeSprite(memory_, 2, enemy.x(), enemy.y(), 2, 2, kEnemyTile, 3, 0);
+}
+
+void SampleGame::renderCookieBanner() {
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 7, "+------------------------------------+", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 8, "|        COOKIE CONSENT              |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 9, "|                                    |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 10, "| THIS GAME WAS MADE IN THE          |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 11, "| EUROPEAN UNION.                    |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 12, "|                                    |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 13, "| WE USE ESSENTIAL COOKIES TO        |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 14, "| REMEMBER YOUR HIGH SCORE.          |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 15, "|                                    |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 16, "| [A] ACCEPT ALL                     |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 17, "| [START] ALSO ACCEPT ALL            |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 18, "|                                    |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 19, "| *YOUR CHOICE IS VERY IMPORTANT     |", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 1, 20, "+------------------------------------+", kFontTile);
+
+    // An empty sprite list keeps the world hidden while consent blocks play.
+    vdp::writeSprite(memory_, 0, -32, -32, 1, 1, 0, 0, 0);
+}
+
+void SampleGame::clearCookieBanner() {
+    for (int row = kCookieBannerFirstRow; row <= kCookieBannerLastRow; ++row) {
+        vdp::writeText(memory_, vdp::kPlaneA, 0, row, kBlankScreenRow, kFontTile);
+    }
 }
 
 } // namespace sample

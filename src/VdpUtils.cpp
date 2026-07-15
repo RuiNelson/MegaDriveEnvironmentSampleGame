@@ -55,8 +55,8 @@ void initialize(memory::Memory &memory) {
     writeRegister(memory, 0x04, 0x07); // Plane B at 0xE000
     writeRegister(memory, 0x05, 0x68); // sprite table at 0xD000
     writeRegister(memory, 0x07, 0x00); // backdrop palette 0, color 0
-    writeRegister(memory, 0x0A, 0x07); // HBlank IRQ every eight scanlines
-    writeRegister(memory, 0x0B, 0x00); // full-screen scrolling
+    writeRegister(memory, 0x0A, kHSyncLineBatch - 1); // HBlank IRQ every four scanlines
+    writeRegister(memory, 0x0B, 0x03); // per-scanline horizontal scrolling
     writeRegister(memory, 0x0C, 0x81); // H40 (320 pixels), non-interlaced
     writeRegister(memory, 0x0D, 0x3C); // HScroll table at 0xF000
     writeRegister(memory, 0x0F, 0x02); // auto-increment by one word
@@ -66,18 +66,19 @@ void initialize(memory::Memory &memory) {
 
     clearVram(memory);
 
-    // Full-screen scroll mode consumes one horizontal offset per plane.
-    setVramWrite(memory, kHScrollTable);
-    memory.write16(kDataPort, 0);
-    memory.write16(kDataPort, 0);
+    // VRAM was cleared above, so every per-scanline scroll pair starts at zero.
 }
 
 void finishInitialization(memory::Memory &memory) {
     writeRegister(memory, 0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
 }
 
-void writeHorizontalScroll(memory::Memory &memory, std::uint16_t planeA, std::uint16_t planeB) {
-    setVramWrite(memory, kHScrollTable);
+void writeHorizontalScrollLine(memory::Memory &memory,
+                               int scanline,
+                               std::uint16_t planeA,
+                               std::uint16_t planeB) {
+    const auto address = static_cast<std::uint16_t>(kHScrollTable + scanline * 4);
+    setVramWrite(memory, address);
     memory.write16(kDataPort, planeA);
     memory.write16(kDataPort, planeB);
 }
