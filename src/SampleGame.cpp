@@ -26,6 +26,7 @@ constexpr std::uint16_t kFloorRomTile = 100;
 constexpr int kCookieBannerFirstRow = 7;
 constexpr int kCookieBannerLastRow = 20;
 constexpr const char *kBlankScreenRow = "                                        ";
+constexpr int kVisibleScanlineCount = 224;
 
 // Both ROM formats are 32 Mbit and place the same packed tile blob at the end.
 constexpr std::uint32_t kRomSize = 4 * 1024 * 1024;
@@ -60,18 +61,31 @@ void SampleGame::initialize() {
 }
 
 void SampleGame::onVSync() {
+    // IRQ6 can pre-empt the final IRQ4 at line 223 on real hardware. Populate
+    // that last block here during VBlank so both targets complete all 224
+    // per-line entries before the next displayed frame.
+    writeBackgroundWaveBlock(kVisibleScanlineCount - vdp::kHSyncLineBatch);
     update();
     render();
     backgroundWavePhase_ = static_cast<std::uint8_t>((backgroundWavePhase_ + 1u) & 0x3Fu);
 }
 
 void SampleGame::onHSync(int scanline) {
+    if (scanline >= kVisibleScanlineCount - 1) {
+        return;
+    }
+
     // One address command starts a contiguous block, then VDP auto-increment
     // advances through all Plane A / Plane B pairs. This keeps the real 68000
     // IRQ short enough while preserving an independent offset for every line.
     const int firstScanline = scanline - (vdp::kHSyncLineBatch - 1);
+    writeBackgroundWaveBlock(firstScanline);
+}
+
+void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
     vdp::beginHorizontalScrollLines(memory_, firstScanline);
-    for (int currentScanline = firstScanline; currentScanline <= scanline; ++currentScanline) {
+    const int endScanline = firstScanline + vdp::kHSyncLineBatch;
+    for (int currentScanline = firstScanline; currentScanline < endScanline; ++currentScanline) {
         const auto step = static_cast<unsigned>((currentScanline + backgroundWavePhase_) & 0x3F);
         int offset;
         if (step < 16u) {

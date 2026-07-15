@@ -52,6 +52,9 @@ class SampleGame final {
     /** Erases the cookie notice before normal gameplay is shown. */
     void clearCookieBanner();
 
+    /** Writes one contiguous block of Plane B per-scanline wave offsets. */
+    void writeBackgroundWaveBlock(int firstScanline);
+
     /** Shared bus used for ROM, controller, PSG and VDP accesses. */
     memory::Memory &memory_;
     /** Memory-mapped three-button controller decoder. */

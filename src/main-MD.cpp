@@ -24,7 +24,6 @@ namespace {
 // supervisor stack for the lifetime of game_main.
 constexpr std::uintptr_t kActiveGameAddress = 0x00FF0000;
 constexpr std::uintptr_t kHLineAddress = 0x00FF0004;
-constexpr std::uint16_t kHSyncVBlankSentinel = 0xFFFF;
 
 void setActiveGame(sample::SampleGame *game) {
     *reinterpret_cast<sample::SampleGame *volatile *>(kActiveGameAddress) = game;
@@ -39,17 +38,11 @@ volatile std::uint16_t &activeHLine() {
 }
 
 void resetHSyncLineShim() {
-    // A final HBlank IRQ remains pending when VBlank begins. Mark it so the
-    // shim can discard it instead of treating it as the first visible block.
-    activeHLine() = kHSyncVBlankSentinel;
+    activeHLine() = static_cast<std::uint16_t>(sample::vdp::kHSyncLineBatch - 1);
 }
 
 int nextHSyncLineFromShim() {
     const auto hLine = activeHLine();
-    if (hLine == kHSyncVBlankSentinel) {
-        activeHLine() = static_cast<std::uint16_t>(sample::vdp::kHSyncLineBatch - 1);
-        return -1;
-    }
     activeHLine() = static_cast<std::uint16_t>(hLine + sample::vdp::kHSyncLineBatch);
     return static_cast<int>(hLine);
 }
@@ -64,11 +57,7 @@ extern "C" void game_vsync() {
 }
 
 extern "C" void game_hsync() {
-    const int hLine = nextHSyncLineFromShim();
-    if (hLine < 0) {
-        return;
-    }
-    activeGame().onHSync(hLine);
+    activeGame().onHSync(nextHSyncLineFromShim());
 }
 
 extern "C" [[noreturn]] void game_main() {
@@ -76,7 +65,7 @@ extern "C" [[noreturn]] void game_main() {
     sample::platform::PlatformMemory memory;
     sample::SampleGame game{memory};
     setActiveGame(&game);
-    activeHLine() = static_cast<std::uint16_t>(sample::vdp::kHSyncLineBatch - 1);
+    resetHSyncLineShim();
     game.initialize();
 
     for (;;) {
