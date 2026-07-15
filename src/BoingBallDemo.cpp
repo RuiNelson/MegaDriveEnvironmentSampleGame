@@ -194,7 +194,7 @@ void BoingBallDemo::activate() {
     rasterBallSize_ = kDefaultZoomSize;
     rasterThetaPhase_ = 0;
     rasterPhiPhase_ = 0;
-    rotationTick_ = 0;
+    rotationAxis_ = RotationAxis::Theta;
     displayBank_ = 0;
     rasterTileDimension_ = 12;
     rasterBlockX_ = 0;
@@ -251,12 +251,14 @@ BounceEvents BoingBallDemo::update(bool zoomIn, bool zoomOut) {
     if (ballXFixed_ <= kLeftEdge * kFixedOne) {
         ballXFixed_ = kLeftEdge * kFixedOne;
         velocityXFixed_ = -velocityXFixed_;
+        rotationAxis_ = RotationAxis::Theta;
         events.hitWall = true;
     } else {
         const int rightEdge = kScreenWidth - kRightInset - ballSize_;
         if (ballXFixed_ >= rightEdge * kFixedOne) {
             ballXFixed_ = rightEdge * kFixedOne;
             velocityXFixed_ = -velocityXFixed_;
+            rotationAxis_ = RotationAxis::Phi;
             events.hitWall = true;
         }
     }
@@ -270,9 +272,9 @@ BounceEvents BoingBallDemo::update(bool zoomIn, bool zoomOut) {
         events.hitFloor = true;
     }
 
-    thetaPhase_ = static_cast<std::uint8_t>((thetaPhase_ + 1u) & 31u);
-    rotationTick_ = static_cast<std::uint8_t>((rotationTick_ + 1u) & 7u);
-    if (rotationTick_ == 0) {
+    if (rotationAxis_ == RotationAxis::Theta) {
+        thetaPhase_ = static_cast<std::uint8_t>((thetaPhase_ + 1u) & 31u);
+    } else {
         phiPhase_ = static_cast<std::uint8_t>((phiPhase_ + 1u) & 31u);
     }
     return events;
@@ -362,6 +364,10 @@ int BoingBallDemo::ballY() const {
 
 int BoingBallDemo::ballSize() const {
     return ballSize_;
+}
+
+RotationAxis BoingBallDemo::rotationAxis() const {
+    return rotationAxis_;
 }
 
 std::uint8_t BoingBallDemo::displayedFps() const {

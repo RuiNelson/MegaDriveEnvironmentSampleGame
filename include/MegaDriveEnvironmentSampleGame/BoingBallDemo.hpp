@@ -15,6 +15,12 @@ struct BounceEvents {
     bool hitWall = false;
 };
 
+/** Single spherical axis currently driven by the side-wall collisions. */
+enum class RotationAxis : std::uint8_t {
+    Theta,
+    Phi,
+};
+
 /**
  * Owns the fixed-point simulation and software tile renderer for the demo.
  *
@@ -42,6 +48,7 @@ class BoingBallDemo final {
     [[nodiscard]] int ballX() const;
     [[nodiscard]] int ballY() const;
     [[nodiscard]] int ballSize() const;
+    [[nodiscard]] RotationAxis rotationAxis() const;
 
     /** Last complete one-second VBlank sample and detected display refresh. */
     [[nodiscard]] std::uint8_t displayedFps() const;
@@ -100,7 +107,6 @@ class BoingBallDemo final {
     std::uint8_t rasterThetaPhase_ = 0;
     std::uint8_t rasterPhiPhase_ = 0;
     std::uint8_t occupiedBallSize_ = 0;
-    std::uint8_t rotationTick_ = 0;
     std::uint8_t displayBank_ = 0;
     std::uint8_t rasterTileDimension_ = 12;
     std::uint8_t rasterBlockX_ = 0;
@@ -114,6 +120,7 @@ class BoingBallDemo final {
     bool surfaceVisible_ = false;
     bool surfaceReadyForDma_ = false;
     bool reuseTransparentTiles_ = false;
+    RotationAxis rotationAxis_ = RotationAxis::Theta;
 };
 
 } // namespace sample::demo

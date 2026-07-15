@@ -82,6 +82,23 @@ int main() {
     assert(demo.ballX() == 8);
     assert(demo.ballY() == 80);
     assert(demo.ballSize() == 96);
+    assert(demo.rotationAxis() == sample::demo::RotationAxis::Theta);
+
+    // The first (right) wall switches to phi-only rotation; returning to the
+    // left wall switches back to theta-only rotation.
+    sample::demo::BounceEvents rightWallEvents;
+    for (int frame = 0; frame < 300 && !rightWallEvents.hitWall; ++frame) {
+        rightWallEvents = demo.update();
+    }
+    assert(rightWallEvents.hitWall);
+    assert(demo.rotationAxis() == sample::demo::RotationAxis::Phi);
+    sample::demo::BounceEvents leftWallEvents;
+    for (int frame = 0; frame < 300 && !leftWallEvents.hitWall; ++frame) {
+        leftWallEvents = demo.update();
+    }
+    assert(leftWallEvents.hitWall);
+    assert(demo.rotationAxis() == sample::demo::RotationAxis::Theta);
+    demo.activate();
 
     ntscMemory.resetRecording();
     demo.render();

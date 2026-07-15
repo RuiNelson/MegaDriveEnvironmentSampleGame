@@ -26,7 +26,8 @@ Start there to return.
 - measuring completed software surfaces over a 60/50-VBlank window;
 - generating the upright wall and perspective floor graphics entirely in
   software, then drawing them on separate planes;
-- rotating the checker texture around both theta and phi axes;
+- switching the checker texture between theta-only and phi-only rotation at
+  opposite side-wall impacts;
 - playing distinct PSG impacts for the floor and side walls;
 - configuring the VDP for H40 / Mode 5 output;
 - loading palettes, font data, and 4-bpp tiles;
@@ -57,8 +58,8 @@ the shared C++ renderer evaluates the white/red texture at the requested
 display resolution without first producing and enlarging a smaller image. A
 direct colour table resolves both rotation axes, shading, rim and transparency
 once per surface, and each eight-pixel tile row is packed into one 32-bit Work
-RAM write. Theta advances every VBlank while phi advances once every eight,
-making the two-axis rotation clearly visible.
+RAM write. A hit on the left wall selects theta-only rotation; a hit on the
+right wall selects phi-only rotation, making each spherical axis unmistakable.
 
 Only the visible tile rectangle is built: 64 pixels uses 64 tiles, the default
 96 pixels uses 144, and 128 pixels uses 256. A variable number of linked sprites
