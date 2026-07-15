@@ -5,6 +5,12 @@
             "label": "Build Sample Game (Debug)",
             "type": "shell",
             "command": "${workspaceFolder}/build_pc.sh",
+            "args": [
+                "-DCMAKE_C_COMPILER=/usr/bin/clang",
+                "-DCMAKE_CXX_COMPILER=/usr/bin/clang++",
+                "-DCMAKE_AR=/usr/bin/ar",
+                "-DCMAKE_RANLIB=/usr/bin/ranlib"
+            ],
             "options": {
                 "cwd": "${workspaceFolder}",
                 "env": {
