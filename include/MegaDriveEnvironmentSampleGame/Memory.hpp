@@ -8,7 +8,6 @@
 #include "MegaDriveEnvironmentSampleGame/StdCompat.hpp"
 
 #if defined(PC)
-class MegaDriveEnvironment;
 class SystemMemory;
 #endif
 
@@ -23,13 +22,6 @@ namespace sample::memory {
 #endif
 
 using Address = std::uint32_t;
-
-/** Bus mask and address ranges used by the sample's ROM and work RAM. */
-inline constexpr Address kAddressMask = 0x00FF'FFFF;
-inline constexpr Address kRomStart = 0x000000;
-inline constexpr Address kRomEnd = 0x3FFFFF;
-inline constexpr Address kWorkRamStart = 0xFF0000;
-inline constexpr Address kWorkRamEnd = 0xFFFFFF;
 
 /**
  * Common 68000 memory contract used by every game target.
@@ -79,74 +71,9 @@ class Memory {
     virtual void write32(Address address, std::uint32_t value) = 0;
 #endif
 
-    /**
-     * Waits until the selected bits of a word match `expected`.
-     *
-     * The default implementation busy-waits, which is appropriate on the real
-     * 68000. Host backends may override it to yield to emulated devices. A
-     * return value of false means the host cancelled the wait.
-     */
-#if defined(MEGADRIVE)
-    SAMPLE_MEMORY_ALWAYS_INLINE bool waitFor16(Address address,
-                                               std::uint16_t mask,
-                                               std::uint16_t expected) const noexcept;
-#else
-    virtual bool waitFor16(Address address, std::uint16_t mask, std::uint16_t expected) {
-        expected = static_cast<std::uint16_t>(expected & mask);
-        while ((read16(address) & mask) != expected) {
-        }
-        return true;
-    }
-#endif
-
-    /** Copies bytes from bus memory into a host or stack buffer. */
-    void read(Address source, std::span<std::uint8_t> destination) {
-        for (std::size_t index = 0; index < destination.size(); ++index) {
-            destination[index] = read8(source + static_cast<Address>(index));
-        }
-    }
-
-    /** Copies bytes from a buffer to bus memory. */
-    void write(Address destination, std::span<const std::uint8_t> source) {
-        for (std::size_t index = 0; index < source.size(); ++index) {
-            write8(destination + static_cast<Address>(index), source[index]);
-        }
-    }
-    /**
-     * Copies within bus memory with `memmove`-style overlap handling.
-     * Device side effects remain visible because copying uses byte accesses.
-     */
-    void copy(Address source, Address destination, std::size_t byteCount) {
-        if (byteCount == 0 || normalize(source) == normalize(destination)) {
-            return;
-        }
-
-        // Copy backwards only when destination starts inside the source range.
-        if (normalize(destination) > normalize(source) &&
-            normalize(destination) < normalize(source + static_cast<Address>(byteCount))) {
-            for (std::size_t index = byteCount; index > 0; --index) {
-                write8(destination + static_cast<Address>(index - 1),
-                       read8(source + static_cast<Address>(index - 1)));
-            }
-            return;
-        }
-
-        for (std::size_t index = 0; index < byteCount; ++index) {
-            write8(destination + static_cast<Address>(index),
-                   read8(source + static_cast<Address>(index)));
-        }
-    }
-
-    /** Writes `value` to a consecutive bus-memory range. */
-    void fill(Address destination, std::uint8_t value, std::size_t byteCount) {
-        for (std::size_t index = 0; index < byteCount; ++index) {
-            write8(destination + static_cast<Address>(index), value);
-        }
-    }
-
     /** Folds an integer address onto the 68000's 24-bit external bus. */
     [[nodiscard]] static constexpr Address normalize(Address address) {
-        return address & kAddressMask;
+        return address & 0x00FF'FFFF;
     }
 
 #if defined(PC)
@@ -174,8 +101,7 @@ using PlatformMemory = memory::Memory;
 /** PC adapter from the common memory API to MegaDriveEnvironment. */
 class PlatformMemory final : public memory::Memory {
   public:
-    /** Supplied objects must outlive this adapter. */
-    explicit PlatformMemory(SystemMemory &memory, MegaDriveEnvironment *environment = nullptr) noexcept;
+    explicit PlatformMemory(SystemMemory &memory) noexcept;
 
     std::uint8_t read8(memory::Address address) noexcept override;
     std::uint16_t read16(memory::Address address) noexcept override;
@@ -185,14 +111,8 @@ class PlatformMemory final : public memory::Memory {
     void write16(memory::Address address, std::uint16_t value) noexcept override;
     void write32(memory::Address address, std::uint32_t value) noexcept override;
 
-    /** Yields to emulated devices instead of busy-waiting the host CPU. */
-    bool waitFor16(memory::Address address,
-                   std::uint16_t mask,
-                   std::uint16_t expected) noexcept override;
-
   private:
     SystemMemory &memory_;
-    MegaDriveEnvironment *environment_;
 };
 
 #endif

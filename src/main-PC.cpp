@@ -29,7 +29,7 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
         : MegaDriveEnvironment(VDP::InternalTimer, VDP::Integer),
           romPath_(std::move(romPath)),
           frameLimit_(frameLimit),
-          gameMemory_(memory(), this),
+          gameMemory_(memory()),
           game_(gameMemory_) {
     }
 

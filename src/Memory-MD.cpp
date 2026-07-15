@@ -53,16 +53,6 @@ SAMPLE_MEMORY_MD_ALWAYS_INLINE void Memory::write32(Address address, std::uint32
     bus<std::uint32_t>(address) = value;
 }
 
-SAMPLE_MEMORY_MD_ALWAYS_INLINE bool Memory::waitFor16(Address address,
-                                                      std::uint16_t mask,
-                                                      std::uint16_t expected) const noexcept {
-    volatile std::uint16_t &value = bus<std::uint16_t>(address);
-    expected = static_cast<std::uint16_t>(expected & mask);
-    while ((value & mask) != expected) {
-    }
-    return true;
-}
-
 #undef SAMPLE_MEMORY_MD_ALWAYS_INLINE
 
 } // namespace sample::memory
