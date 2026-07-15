@@ -18,7 +18,7 @@ Start there to return.
 - overriding `vSync()` and `hSync(int)` in the PC environment application;
 - forwarding real-hardware IRQ6/IRQ4 to the same shared VBlank/HBlank methods;
 - creating a visible HBlank raster-wave effect on the Plane B floor;
-- rendering a rotating, bouncing white/red/blue checker ball in software;
+- rendering a rotating, bouncing white/red checker ball in software;
 - rasterizing every final ball pixel from a packed 128x128 sphere lookup;
 - generating only `ceil(size/8)^2` display tiles for continuous 64–128 px zoom;
 - double-buffering completed surfaces from fixed Work RAM to VRAM with VDP DMA;
@@ -53,10 +53,11 @@ Boing Ball screen. The ball starts 96 pixels wide—30% of the H40 display. Hold
 Up to approach it continuously up to 128 pixels, or Down to move away down to
 64 pixels. It uses no pre-rendered animation frames. A packed 128x128 sphere
 lookup in ROM supplies shading, longitude and latitude for each final pixel;
-the shared C++ renderer evaluates the white/red/blue texture at the requested
+the shared C++ renderer evaluates the white/red texture at the requested
 display resolution without first producing and enlarging a smaller image. A
-256-byte phase table resolves both rotation axes once per surface, and each
-eight-pixel tile row is packed into one 32-bit Work RAM write.
+direct colour table resolves both rotation axes, shading, rim and transparency
+once per surface, and each eight-pixel tile row is packed into one 32-bit Work
+RAM write.
 
 Only the visible tile rectangle is built: 64 pixels uses 64 tiles, the default
 96 pixels uses 144, and 128 pixels uses 256. A variable number of linked sprites

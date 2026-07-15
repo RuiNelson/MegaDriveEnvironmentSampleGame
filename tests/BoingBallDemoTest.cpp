@@ -95,8 +95,8 @@ int main() {
            ntscMemory.sawRasterIndex[3]);
     assert(ntscMemory.sawRasterIndex[4] || ntscMemory.sawRasterIndex[5] ||
            ntscMemory.sawRasterIndex[6]);
-    assert(ntscMemory.sawRasterIndex[8] || ntscMemory.sawRasterIndex[9] ||
-           ntscMemory.sawRasterIndex[10]);
+    assert(!ntscMemory.sawRasterIndex[8] && !ntscMemory.sawRasterIndex[9] &&
+           !ntscMemory.sawRasterIndex[10]);
 
     // The completed Work RAM surface is DMA'd on the next VBlank, then a new
     // surface is built using whatever beam-time budget remains.

@@ -80,8 +80,8 @@ class BoingBallDemo final {
     memory::Memory &memory_;
     /** Output coordinate to unique 128x128 geometry coordinate; $FF is transparent. */
     std::uint8_t sourceCoordinate_[kMaximumBallSize];
-    /** Phase-resolved base colour for each packed 4-bit longitude/latitude pair. */
-    std::uint8_t textureBase_[256];
+    /** Direct palette result for every packed geometry value used by the sphere. */
+    std::uint8_t surfaceColor_[513];
     /** Non-empty tile mask from the last complete surface at occupiedBallSize_. */
     std::uint8_t occupiedTiles_[32];
     int ballXFixed_ = 0;
