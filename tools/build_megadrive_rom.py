@@ -27,10 +27,7 @@ def run(command: list[str], *, cwd: Path) -> None:
 def require_tool(name: str) -> str:
     executable = shutil.which(name)
     if executable is None:
-        if "vasm" in name:
-            hint = "install vasm from http://sun.hasenbraten.de/vasm"
-        else:
-            hint = "on macOS run 'brew install m68k-elf-binutils m68k-elf-gcc'"
+        hint = "on macOS run 'brew install m68k-elf-binutils m68k-elf-gcc'"
         raise RuntimeError(f"required tool '{name}' was not found; {hint}")
     return executable
 
@@ -138,26 +135,6 @@ def generate_combined_cpp(output_path: Path, repository: Path) -> None:
     output_path.write_text("".join(lines), encoding="utf-8")
 
 
-def normalize_gcc_assembly_for_vasm(assembly_path: Path) -> None:
-    """Normalize the small GNU-as differences not accepted by vasm std."""
-    normalized: list[str] = []
-    for line in assembly_path.read_text(encoding="utf-8").splitlines():
-        if line.lstrip().startswith("#"):
-            continue
-        if line.strip() == ".weak\t__cxa_pure_virtual":
-            continue
-        line = line.replace(".-", "$-")
-        # GCC names A6 as %fp and spells the original 68000 LINK instruction
-        # with an explicit .w suffix. vasm std accepts the equivalent canonical
-        # 68000 form below.
-        line = line.replace("link.w %fp,", "link %a6,").replace("%fp", "%a6")
-        if line.lstrip().startswith(".section") and ",@progbits," in line:
-            line = line.split(",@progbits,", 1)[0] + ",@progbits"
-            line = line.replace('"axG"', '"ax"').replace('"aMS"', '"a"')
-        normalized.append(line)
-    assembly_path.write_text("\n".join(normalized) + "\n", encoding="utf-8")
-
-
 def build(args: argparse.Namespace) -> None:
     repository = Path(__file__).resolve().parent.parent
     build_dir = args.build_dir.resolve()
@@ -169,7 +146,7 @@ def build(args: argparse.Namespace) -> None:
     output_rom.parent.mkdir(parents=True, exist_ok=True)
 
     cxx = require_tool(f"{args.tool_prefix}g++")
-    assembler = require_tool(args.assembler)
+    assembler = require_tool(args.assembler or f"{args.tool_prefix}as")
     linker = require_tool(f"{args.tool_prefix}ld")
     objcopy = require_tool(f"{args.tool_prefix}objcopy")
 
@@ -193,7 +170,9 @@ def build(args: argparse.Namespace) -> None:
     code_assembly = generated_dir / "code.s"
     blobs_assembly = generated_dir / "blobs.s"
     blob_binary = generated_dir / "assets.bin"
-    object_path = build_dir / "main.o"
+    header_object = build_dir / "header.o"
+    code_object = build_dir / "code.o"
+    blobs_object = build_dir / "blobs.o"
     elf_path = build_dir / "MegaDriveEnvironmentSampleGame.elf"
     map_path = build_dir / "MegaDriveEnvironmentSampleGame.map"
 
@@ -232,25 +211,16 @@ def build(args: argparse.Namespace) -> None:
         ],
         cwd=repository,
     )
-    normalize_gcc_assembly_for_vasm(code_assembly)
-
-    run(
-        [
-            assembler,
-            "-quiet",
-            "-Felf",
-            "-gas",
-            "-m68000",
-            "-no-fpu",
-            "-elfregs",
-            f"-I{repository / 'megadrive'}",
-            f"-I{generated_dir}",
-            "-o",
-            str(object_path),
-            str(repository / "megadrive" / "main.s"),
-        ],
-        cwd=repository,
+    assembly_inputs = (
+        (repository / "megadrive" / "header.s", header_object),
+        (code_assembly, code_object),
+        (blobs_assembly, blobs_object),
     )
+    for source, object_path in assembly_inputs:
+        run(
+            [assembler, "-m68000", "-o", str(object_path), str(source)],
+            cwd=repository,
+        )
     run(
         [
             linker,
@@ -261,7 +231,9 @@ def build(args: argparse.Namespace) -> None:
             str(map_path),
             "-o",
             str(elf_path),
-            str(object_path),
+            str(header_object),
+            str(code_object),
+            str(blobs_object),
         ],
         cwd=repository,
     )
@@ -289,7 +261,6 @@ def build(args: argparse.Namespace) -> None:
     print(f"Assembly inputs: {repository / 'megadrive' / 'header.s'}")
     print(f"                 {code_assembly}")
     print(f"                 {blobs_assembly}")
-    print(f"                 {repository / 'megadrive' / 'main.s'}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -329,8 +300,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--assembler",
-        default="vasmm68k_std",
-        help="vasm M68k assembler executable (default: vasmm68k_std)",
+        help="GNU M68k assembler executable (default: <tool-prefix>as)",
     )
     parser.add_argument(
         "--tool-prefix",

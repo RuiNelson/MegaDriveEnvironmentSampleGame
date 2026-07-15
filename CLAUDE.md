@@ -35,9 +35,9 @@ Build the real Mega Drive ROM with:
 ./build_megadrive.sh
 ```
 
-The real-hardware pipeline requires `vasmm68k_std` plus the `m68k-elf` GCC and
-binutils tools. `tools/build_megadrive_rom.py` owns the compilation, assembly,
-link, checksum, and structural validation steps.
+The real-hardware pipeline requires the `m68k-elf` GCC and binutils tools,
+including `m68k-elf-as`. `tools/build_megadrive_rom.py` owns the compilation,
+assembly, link, checksum, and structural validation steps.
 
 ```bash
 cmake -S . -B build \

@@ -1,5 +1,5 @@
 | Hand-written Mega Drive vector table, cartridge header and startup code.
-| vasm standard/GNU-as compatible syntax.
+| GNU assembler syntax.
 
     .section .vectors,"a",@progbits
     .globl rom_vectors
@@ -45,20 +45,20 @@ header_console:
     .ascii "SEGA MEGA DRIVE "
 header_copyright:
     .ascii "(C)RNS 2026.JUL"
-    .space 16 - ($ - header_copyright), 0x20
+    .space 16 - (. - header_copyright), 0x20
 header_domestic_name:
     .ascii "MEGADRIVE ENVIRONMENT SAMPLE GAME"
-    .space 48 - ($ - header_domestic_name), 0x20
+    .space 48 - (. - header_domestic_name), 0x20
 header_overseas_name:
     .ascii "MEGADRIVE ENVIRONMENT SAMPLE GAME"
-    .space 48 - ($ - header_overseas_name), 0x20
+    .space 48 - (. - header_overseas_name), 0x20
 header_serial:
     .ascii "GM 00000000-00"
 header_checksum:
     .word 0                    | Patched by build_megadrive_rom.py
 header_io_support:
     .ascii "J"
-    .space 16 - ($ - header_io_support), 0x20
+    .space 16 - (. - header_io_support), 0x20
 header_rom_start:
     .long 0x00000000
 header_rom_end:
@@ -72,11 +72,10 @@ header_backup_ram:
 header_modem:
     .space 12, 0x20
 header_notes:
-    .ascii "C++23 SAMPLE; TILES STORED AT END OF ROM"
-    .space 40 - ($ - header_notes), 0x20
+    .ascii "C++23 SAMPLE; TILES STORED AT END OF ROM" | Exactly 40 bytes
 header_regions:
     .ascii "JUE"
-    .space 16 - ($ - header_regions), 0x20
+    .space 16 - (. - header_regions), 0x20
 
     .section .startup,"ax",@progbits
     .balign 2
