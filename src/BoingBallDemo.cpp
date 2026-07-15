@@ -52,9 +52,10 @@ constexpr std::uint16_t kTextPalette[16]{
 constexpr std::uint16_t kBallPalette[16]{
     0x0000, // transparent
     0x0004, 0x000A, 0x000E, // shaded red
-    0x0400, 0x0A00, 0x0E00, // shaded blue
+    0x0666, 0x0AAA, 0x0EEE, // shaded white
     0x0000,                 // silhouette rim
-    0, 0, 0, 0, 0, 0, 0, 0,
+    0x0400, 0x0A00, 0x0E00, // shaded blue
+    0, 0, 0, 0, 0,
 };
 constexpr std::uint16_t kShadowPalette[16]{
     0x0000, 0x0222, 0x0444, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -114,14 +115,14 @@ void BoingBallDemo::initialize() {
                 continue;
             }
 
-            // Lighting never changes with texture rotation. Packing both
-            // possible checker shades here reduces each runtime pixel to two
-            // phase additions, one bit test and one nibble extraction.
+            // Lighting never changes with texture rotation. Red and white are
+            // packed here; the matching blue shade is four palette indices
+            // above white, avoiding another byte in the sphere lookup.
             const int light = depth - sphereX / 2 - sphereY / 2;
             const std::uint8_t shade = light >= 24 ? 2 : (light >= 11 ? 1 : 0);
             const auto red = static_cast<std::uint8_t>(1 + shade);
-            const auto blue = static_cast<std::uint8_t>(4 + shade);
-            point.colors = static_cast<std::uint8_t>((red << 4) | blue);
+            const auto white = static_cast<std::uint8_t>(4 + shade);
+            point.colors = static_cast<std::uint8_t>((red << 4) | white);
         }
     }
 

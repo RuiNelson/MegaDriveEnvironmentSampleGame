@@ -26,6 +26,9 @@ class RecordingMemory final : public sample::memory::Memory {
     void write16(sample::memory::Address address, std::uint16_t value) override {
         if (address >= kBufferStart && address < kBufferEnd) {
             ++bufferWordWrites;
+            for (int shift = 0; shift < 16; shift += 4) {
+                sawRasterIndex[(value >> shift) & 0x0F] = true;
+            }
             if (address < minimumBufferAddress) {
                 minimumBufferAddress = address;
             }
@@ -49,6 +52,9 @@ class RecordingMemory final : public sample::memory::Memory {
         maximumBufferAddress = 0;
         sawBallDmaDestination = false;
         sawDmaCommand = false;
+        for (auto &seen : sawRasterIndex) {
+            seen = false;
+        }
     }
 
     static constexpr sample::memory::Address kBufferStart = 0xFF1000;
@@ -59,6 +65,7 @@ class RecordingMemory final : public sample::memory::Memory {
     sample::memory::Address maximumBufferAddress = 0;
     bool sawBallDmaDestination = false;
     bool sawDmaCommand = false;
+    bool sawRasterIndex[16]{};
 };
 
 } // namespace
@@ -82,6 +89,12 @@ int main() {
     assert(ntscMemory.maximumBufferAddress == RecordingMemory::kBufferEnd - 2);
     assert(ntscMemory.sawBallDmaDestination);
     assert(ntscMemory.sawDmaCommand);
+    assert(ntscMemory.sawRasterIndex[1] || ntscMemory.sawRasterIndex[2] ||
+           ntscMemory.sawRasterIndex[3]);
+    assert(ntscMemory.sawRasterIndex[4] || ntscMemory.sawRasterIndex[5] ||
+           ntscMemory.sawRasterIndex[6]);
+    assert(ntscMemory.sawRasterIndex[8] || ntscMemory.sawRasterIndex[9] ||
+           ntscMemory.sawRasterIndex[10]);
 
     // Tile persistence halves the raster cost: motion renders on the first
     // update without rebuilding tiles, then the second update rebuilds them.

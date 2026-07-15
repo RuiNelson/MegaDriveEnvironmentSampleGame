@@ -48,7 +48,7 @@ class BoingBallDemo final {
 
   private:
     struct SurfacePoint {
-        /** Red shade in the high nibble and blue shade in the low nibble. */
+        /** Red shade in the high nibble and white shade in the low nibble. */
         std::uint8_t colors;
         /** Approximate texture longitude in 32 angular steps. */
         std::uint8_t longitude;
@@ -71,10 +71,20 @@ class BoingBallDemo final {
     /** Returns one pre-shaded checker pixel for the current theta/phi rotation. */
     [[nodiscard, gnu::always_inline]] inline std::uint8_t rasterizedPixel(int x, int y) const {
         const auto &point = surface_[y * kLogicalBallSize + x];
-        const bool red = (((point.longitude + thetaPhase_) ^
-                           (point.latitude + phiPhase_)) & 4u) == 0;
-        return red ? static_cast<std::uint8_t>(point.colors >> 4)
-                   : static_cast<std::uint8_t>(point.colors & 0x0Fu);
+        const auto white = static_cast<std::uint8_t>(point.colors & 0x0Fu);
+        if (point.colors == 0 || point.colors == 0x77) {
+            return white;
+        }
+
+        const auto longitude = static_cast<std::uint8_t>(point.longitude + thetaPhase_);
+        const auto latitude = static_cast<std::uint8_t>(point.latitude + phiPhase_);
+        if (((longitude ^ latitude) & 4u) != 0) {
+            return white;
+        }
+
+        const auto red = static_cast<std::uint8_t>(point.colors >> 4);
+        const bool blue = ((longitude + latitude) & 8u) != 0;
+        return blue ? static_cast<std::uint8_t>(white + 4u) : red;
     }
 
     /** Builds nine expanded 4x4 sprite blocks in the reserved Work RAM buffer. */
