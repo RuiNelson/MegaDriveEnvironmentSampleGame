@@ -20,7 +20,7 @@ Start there to return.
 - creating a visible HBlank raster-wave effect on the Plane B floor;
 - rendering a rotating, bouncing white/red checker ball in software;
 - rasterizing every final ball pixel from a packed 128x128 sphere lookup;
-- generating only `ceil(size/8)^2` display tiles for continuous 64–128 px zoom;
+- generating only `ceil(size/8)^2` display tiles for continuous 8–128 px zoom;
 - double-buffering completed surfaces from fixed Work RAM to VRAM with VDP DMA;
 - composing the ball and its dithered ground shadow from linked hardware sprites;
 - measuring completed software surfaces over a 60/50-VBlank window;
@@ -52,7 +52,7 @@ inside MegaDriveEnvironment and on the physical console.
 After accepting the opening notice, press Start from gameplay to open the
 Boing Ball screen. The ball starts 96 pixels wide—30% of the H40 display. Hold
 Up to approach it continuously up to 128 pixels, or Down to move away down to
-64 pixels. It uses no pre-rendered animation frames. A packed 128x128 sphere
+8 pixels. It uses no pre-rendered animation frames. A packed 128x128 sphere
 lookup in ROM supplies shading, longitude and latitude for each final pixel;
 the shared C++ renderer evaluates the white/red texture at the requested
 display resolution without first producing and enlarging a smaller image. A
@@ -61,8 +61,9 @@ once per surface, and each eight-pixel tile row is packed into one 32-bit Work
 RAM write. A hit on the left wall selects theta-only rotation; a hit on the
 right wall selects phi-only rotation, making each spherical axis unmistakable.
 
-Only the visible tile rectangle is built: 64 pixels uses 64 tiles, the default
-96 pixels uses 144, and 128 pixels uses 256. A variable number of linked sprites
+Only the visible tile rectangle is built: 8 pixels uses one tile, 64 pixels
+uses 64, the default 96 pixels uses 144, and 128 pixels uses 256. A variable
+number of linked sprites
 displays that rectangle while four more form its scaled dithered shadow. After
 learning a size's static silhouette, later rotations skip its fully transparent
 corner tiles; changing the continuous zoom safely rebuilds that occupancy mask.

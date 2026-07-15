@@ -33,7 +33,7 @@ constexpr int kScreenWidth = 320;
 constexpr int kRightInset = 8;
 constexpr int kBallFloor = 208;
 constexpr int kShadowY = 202;
-constexpr std::uint8_t kMinimumZoomSize = 64;
+constexpr std::uint8_t kMinimumZoomSize = 8;
 constexpr std::uint8_t kDefaultZoomSize = 96;
 constexpr std::uint8_t kMaximumZoomSize = 128;
 
@@ -441,11 +441,16 @@ void BoingBallDemo::beginSurfaceRaster() {
     }
     int source = 0;
     int error = 0;
-    const int extraSourceSteps = kMaximumBallSize - rasterBallSize_;
+    int sourceStep = 1;
+    int sourceRemainder = kMaximumBallSize - rasterBallSize_;
+    while (sourceRemainder >= rasterBallSize_) {
+        sourceRemainder -= rasterBallSize_;
+        ++sourceStep;
+    }
     for (int output = 0; output < rasterBallSize_; ++output) {
         sourceCoordinate_[output] = static_cast<std::uint8_t>(source);
-        ++source;
-        error += extraSourceSteps;
+        source += sourceStep;
+        error += sourceRemainder;
         if (error >= rasterBallSize_) {
             error -= rasterBallSize_;
             ++source;

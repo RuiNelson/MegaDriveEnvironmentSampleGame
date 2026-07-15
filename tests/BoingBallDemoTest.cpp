@@ -131,18 +131,18 @@ int main() {
         (void)demo.update(true, false);
     }
     assert(demo.ballSize() == 128);
-    for (int frame = 0; frame < 64; ++frame) {
+    for (int frame = 0; frame < 120; ++frame) {
         (void)demo.update(false, true);
     }
-    assert(demo.ballSize() == 64);
+    assert(demo.ballSize() == 8);
 
-    // The 64-pixel display size uses only 8x8 tiles. The first render finishes
+    // The 8-pixel display size uses exactly one tile. The first render finishes
     // the already-frozen 96-pixel surface; the second starts the new size.
     ntscMemory.resetRecording();
     demo.render();
     ntscMemory.resetRecording();
     demo.render();
-    assert(ntscMemory.bufferWordWrites == 64 * 16);
+    assert(ntscMemory.bufferWordWrites == 16);
 
     // With an unconstrained mock beam counter, PC-like execution completes a
     // surface per callback after the one-frame pipeline fill.
