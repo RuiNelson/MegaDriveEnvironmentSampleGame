@@ -53,6 +53,21 @@ void PsgSoundEffects::update() {
             silence();
         }
         break;
+    case Effect::BallFloorBounce:
+        if (frame_ == 2) {
+            setTone(0x0D0, 3);
+            setNoise(0x04, 8);
+        } else if (frame_ >= 6) {
+            silence();
+        }
+        break;
+    case Effect::BallWallBounce:
+        if (frame_ == 2) {
+            setTone(0x090, 4);
+        } else if (frame_ >= 5) {
+            silence();
+        }
+        break;
     case Effect::None:
         break;
     }
@@ -77,6 +92,20 @@ void PsgSoundEffects::playRestart() {
     frame_ = 0;
     write(0xFF);
     setTone(0x120, 3);
+}
+
+void PsgSoundEffects::playBallFloorBounce() {
+    effect_ = Effect::BallFloorBounce;
+    frame_ = 0;
+    setTone(0x0A0, 2);
+    setNoise(0x06, 5);
+}
+
+void PsgSoundEffects::playBallWallBounce() {
+    effect_ = Effect::BallWallBounce;
+    frame_ = 0;
+    write(0xFF);
+    setTone(0x060, 3);
 }
 
 void PsgSoundEffects::write(std::uint8_t value) {

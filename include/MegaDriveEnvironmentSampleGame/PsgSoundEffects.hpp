@@ -37,12 +37,20 @@ class PsgSoundEffects final {
     /** Starts the short two-note restart confirmation. */
     void playRestart();
 
+    /** Starts the low, noisy impact used when the demo ball hits the floor. */
+    void playBallFloorBounce();
+
+    /** Starts the slightly higher dry impact used for a wall collision. */
+    void playBallWallBounce();
+
   private:
     enum class Effect : std::uint8_t {
         None,
         GemCollected,
         GameOver,
         Restart,
+        BallFloorBounce,
+        BallWallBounce,
     };
 
     /** Writes one SN76489 command/data byte to the memory-mapped PSG port. */

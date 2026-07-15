@@ -75,4 +75,6 @@ cmake -S . -B build \
 - Keep the shared game allocation-free. The real-hardware build intentionally
   provides no `operator new/delete`, so use automatic or embedded
   fixed-capacity storage.
+- Preserve the Work RAM reservations at `$FF0000-$FF0005` for the IRQ bridge
+  and `$FF1000-$FF21FF` for `BoingBallDemo`'s dynamic tile/DMA buffer.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

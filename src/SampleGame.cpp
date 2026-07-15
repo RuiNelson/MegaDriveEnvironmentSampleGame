@@ -50,7 +50,8 @@ constexpr std::uint16_t kFloorPalette[16]{
 } // namespace
 
 SampleGame::SampleGame(memory::Memory &memory)
-    : memory_(memory), player1Controller_(memory, controllers::Player::One), soundEffects_(memory) {
+    : memory_(memory), player1Controller_(memory, controllers::Player::One), soundEffects_(memory),
+      boingBallDemo_(memory) {
 }
 
 void SampleGame::initialize() {
@@ -85,6 +86,13 @@ void SampleGame::onHSync(int scanline) {
 void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
     vdp::beginHorizontalScrollLines(memory_, firstScanline);
     const int endScanline = firstScanline + vdp::kHSyncLineBatch;
+    if (screen_ == Screen::BoingBall) {
+        for (int currentScanline = firstScanline; currentScanline < endScanline; ++currentScanline) {
+            vdp::appendHorizontalScrollLine(memory_, 0, 0);
+        }
+        return;
+    }
+
     for (int currentScanline = firstScanline; currentScanline < endScanline; ++currentScanline) {
         const auto step = static_cast<unsigned>((currentScanline + backgroundWavePhase_) & 0x3F);
         int offset;
@@ -103,10 +111,7 @@ void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
 
 void SampleGame::initializeGraphics() {
     vdp::initialize(memory_);
-    vdp::loadPalette(memory_, 0, kTextPalette);
-    vdp::loadPalette(memory_, 1, kPlayerPalette);
-    vdp::loadPalette(memory_, 2, kGemPalette);
-    vdp::loadPalette(memory_, 3, kFloorPalette);
+    boingBallDemo_.initialize();
 
     // Copy only the required spans even though all assets share one ROM blob.
     vdp::loadTilesFromRom(memory_, kRomTileData, kFontTile, kFontTileCount);
@@ -114,17 +119,31 @@ void SampleGame::initializeGraphics() {
     vdp::loadTilesFromRom(memory_, kRomTileData + kGemRomTile * 32, kGemTile, 1);
     vdp::loadTilesFromRom(memory_, kRomTileData + kFloorRomTile * 32, kFloorTile, 1);
 
-    vdp::fillPlane(memory_, vdp::kPlaneA, vdp::tileDescriptor(0));
     vdp::fillPlane(memory_, vdp::kPlaneB, vdp::tileDescriptor(kFloorTile, 3));
-    vdp::writeText(memory_, vdp::kPlaneA, 2, 1, "MEGADRIVE ENVIRONMENT SAMPLE", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 2, 26, "D-PAD MOVE   A/START RESET", kFontTile);
+    activateGameScreen();
     vdp::finishInitialization(memory_);
+}
+
+void SampleGame::activateGameScreen() {
+    vdp::writeRegister(memory_, 0x07, 0x00);
+    vdp::writeRegister(memory_, 0x11, 0x00);
+    vdp::writeRegister(memory_, 0x12, 0x00); // disable the demo's bottom Window plane
+    vdp::loadPalette(memory_, 0, kTextPalette);
+    vdp::loadPalette(memory_, 1, kPlayerPalette);
+    vdp::loadPalette(memory_, 2, kGemPalette);
+    vdp::loadPalette(memory_, 3, kFloorPalette);
+
+    vdp::fillPlaneArea(memory_, vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    vdp::writeText(memory_, vdp::kPlaneA, 2, 1, "MEGADRIVE ENVIRONMENT SAMPLE", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 2, 26, "D-PAD MOVE   A RESET   START DEMO", kFontTile);
 }
 
 void SampleGame::update() {
     // Advance the previous effect before a newly emitted event replaces it.
     soundEffects_.update();
-    const auto controls = player1Controller_.read();
+    auto controls = player1Controller_.read();
+    const bool startPressed = controls.start && !startWasDown_;
+    startWasDown_ = controls.start;
 
     if (!cookieConsentAccepted_) {
         // In keeping with the joke, A and Start are presented as different
@@ -146,6 +165,30 @@ void SampleGame::update() {
         waitingForConsentButtonRelease_ = false;
     }
 
+    if (screen_ == Screen::BoingBall) {
+        if (startPressed) {
+            screen_ = Screen::Game;
+            activateGameScreen();
+            return;
+        }
+        const auto events = boingBallDemo_.update();
+        if (events.hitFloor) {
+            soundEffects_.playBallFloorBounce();
+        } else if (events.hitWall) {
+            soundEffects_.playBallWallBounce();
+        }
+        return;
+    }
+
+    if (startPressed) {
+        screen_ = Screen::BoingBall;
+        boingBallDemo_.activate();
+        return;
+    }
+
+    // Start belongs to screen navigation; A remains the gameplay reset input.
+    controls.start = false;
+
     const auto events = session_.update(controls);
     if (events.restarted()) {
         soundEffects_.playRestart();
@@ -157,6 +200,11 @@ void SampleGame::update() {
 }
 
 void SampleGame::render() {
+    if (screen_ == Screen::BoingBall) {
+        boingBallDemo_.render();
+        return;
+    }
+
     if (!cookieConsentAccepted_) {
         renderCookieBanner();
         return;

@@ -122,6 +122,7 @@ def generate_blobs_assembly(output_path: Path, blob_path: Path) -> None:
 def generate_combined_cpp(output_path: Path, repository: Path) -> None:
     sources = (
         repository / "src" / "Memory-MD.cpp",
+        repository / "src" / "BoingBallDemo.cpp",
         repository / "src" / "ControllerReader.cpp",
         repository / "src" / "GameSession.cpp",
         repository / "src" / "PsgSoundEffects.cpp",

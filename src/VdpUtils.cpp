@@ -104,10 +104,45 @@ void loadTilesFromRom(memory::Memory &memory,
     }
 }
 
+void dmaToVram(memory::Memory &memory,
+               memory::Address sourceAddress,
+               std::uint16_t destinationAddress,
+               std::uint16_t wordCount) {
+    const auto sourceWord = memory::Memory::normalize(sourceAddress) >> 1;
+    writeRegister(memory, 0x13, static_cast<std::uint8_t>(wordCount & 0xFFu));
+    writeRegister(memory, 0x14, static_cast<std::uint8_t>(wordCount >> 8));
+    writeRegister(memory, 0x15, static_cast<std::uint8_t>(sourceWord & 0xFFu));
+    writeRegister(memory, 0x16, static_cast<std::uint8_t>((sourceWord >> 8) & 0xFFu));
+    // Bit 7 clear selects a 68000-bus copy; bit 6 remains part of the source
+    // bank, allowing the $FFxxxx Work RAM mirror used by the demo.
+    writeRegister(memory, 0x17, static_cast<std::uint8_t>((sourceWord >> 16) & 0x7Fu));
+
+    constexpr std::uint8_t kVramDmaWrite = kVramWrite | 0x20;
+    memory.write16(kControlPort, commandWord1(kVramDmaWrite, destinationAddress));
+    memory.write16(kControlPort, commandWord2(kVramDmaWrite, destinationAddress));
+}
+
 void fillPlane(memory::Memory &memory, std::uint16_t planeBase, std::uint16_t descriptor) {
     setVramWrite(memory, planeBase);
     for (int cell = 0; cell < kPlaneWidth * kPlaneHeight; ++cell) {
         memory.write16(kDataPort, descriptor);
+    }
+}
+
+void fillPlaneArea(memory::Memory &memory,
+                   std::uint16_t planeBase,
+                   int column,
+                   int row,
+                   int width,
+                   int height,
+                   std::uint16_t descriptor) {
+    for (int areaRow = 0; areaRow < height; ++areaRow) {
+        const auto address = static_cast<std::uint16_t>(
+            planeBase + ((row + areaRow) * kPlaneWidth + column) * 2);
+        setVramWrite(memory, address);
+        for (int areaColumn = 0; areaColumn < width; ++areaColumn) {
+            memory.write16(kDataPort, descriptor);
+        }
     }
 }
 

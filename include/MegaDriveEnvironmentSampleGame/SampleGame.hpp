@@ -6,6 +6,7 @@
  */
 
 #include "MegaDriveEnvironmentSampleGame/ControllerReader.hpp"
+#include "MegaDriveEnvironmentSampleGame/BoingBallDemo.hpp"
 #include "MegaDriveEnvironmentSampleGame/GameSession.hpp"
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 #include "MegaDriveEnvironmentSampleGame/PsgSoundEffects.hpp"
@@ -37,8 +38,16 @@ class SampleGame final {
     void onHSync(int scanline);
 
   private:
+    enum class Screen : std::uint8_t {
+        Game,
+        BoingBall,
+    };
+
     /** Configures palettes, tile data, planes and static HUD text. */
     void initializeGraphics();
+
+    /** Restores gameplay palettes, visible Plane A cells and static labels. */
+    void activateGameScreen();
 
     /** Samples input, advances gameplay/audio and handles one-frame events. */
     void update();
@@ -63,6 +72,8 @@ class SampleGame final {
     game::GameSession session_;
     /** Frame-driven SN76489 effect sequencer. */
     audio::PsgSoundEffects soundEffects_;
+    /** Shared fixed-point and software-rendered Start-screen demo. */
+    demo::BoingBallDemo boingBallDemo_;
     /** Moves the Plane B wave vertically without scrolling Plane A. */
     std::uint8_t backgroundWavePhase_ = 0;
     /** Keeps gameplay paused until the player accepts the satirical notice. */
@@ -71,6 +82,10 @@ class SampleGame final {
     bool waitingForConsentButtonRelease_ = false;
     /** Requests one cleanup pass when gameplay replaces the notice. */
     bool cookieBannerNeedsClear_ = false;
+    /** Current renderer selected by an edge-triggered Start press. */
+    Screen screen_ = Screen::Game;
+    /** Converts the level-sensitive controller bit into screen-toggle edges. */
+    bool startWasDown_ = false;
 };
 
 } // namespace sample

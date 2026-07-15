@@ -22,6 +22,7 @@ inline constexpr std::uint16_t kPlaneA = 0xC000;
 inline constexpr std::uint16_t kSpriteTable = 0xD000;
 inline constexpr std::uint16_t kPlaneB = 0xE000;
 inline constexpr std::uint16_t kHScrollTable = 0xF000;
+inline constexpr std::uint16_t kWindowPlane = 0xB000;
 
 /** Plane dimensions selected by VDP register 16, measured in 8x8 cells. */
 inline constexpr int kPlaneWidth = 64;
@@ -74,8 +75,26 @@ void loadTilesFromRom(memory::Memory &memory,
                       std::uint16_t firstVramTile,
                       std::uint16_t tileCount);
 
+/**
+ * Copies an even Work RAM block to VRAM with the VDP's 68000-bus DMA mode.
+ * `wordCount` is the number of 16-bit words and must not be zero.
+ */
+void dmaToVram(memory::Memory &memory,
+               memory::Address sourceAddress,
+               std::uint16_t destinationAddress,
+               std::uint16_t wordCount);
+
 /** Fills all 64x32 cells of a plane with the same tile descriptor. */
 void fillPlane(memory::Memory &memory, std::uint16_t planeBase, std::uint16_t tileDescriptor);
+
+/** Fills a bounded plane rectangle, issuing one contiguous VDP write per row. */
+void fillPlaneArea(memory::Memory &memory,
+                   std::uint16_t planeBase,
+                   int column,
+                   int row,
+                   int width,
+                   int height,
+                   std::uint16_t tileDescriptor);
 
 /** Writes one in-bounds cell in a plane name table. */
 void writePlaneTile(memory::Memory &memory,

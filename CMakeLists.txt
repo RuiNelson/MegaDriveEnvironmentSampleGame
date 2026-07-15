@@ -26,6 +26,7 @@ add_subdirectory(
 )
 
 add_library(sample_game STATIC
+    src/BoingBallDemo.cpp
     src/ControllerReader.cpp
     src/GameSession.cpp
     src/PsgSoundEffects.cpp
@@ -103,6 +104,10 @@ if(BUILD_TESTING)
     add_executable(sample_game_session_test tests/GameSessionTest.cpp)
     target_link_libraries(sample_game_session_test PRIVATE sample_game)
     add_test(NAME sample_game_session_test COMMAND sample_game_session_test)
+
+    add_executable(sample_boing_ball_demo_test tests/BoingBallDemoTest.cpp)
+    target_link_libraries(sample_boing_ball_demo_test PRIVATE sample_game)
+    add_test(NAME sample_boing_ball_demo_test COMMAND sample_boing_ball_demo_test)
 
     add_executable(sample_psg_sound_effects_test tests/PsgSoundEffectsTest.cpp)
     target_link_libraries(sample_psg_sound_effects_test PRIVATE sample_game)

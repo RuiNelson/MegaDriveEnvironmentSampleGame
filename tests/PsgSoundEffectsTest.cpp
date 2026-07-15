@@ -30,7 +30,7 @@ class RecordingMemory final : public sample::memory::Memory {
     void write32(sample::memory::Address, std::uint32_t) override {
     }
 
-    std::array<std::uint8_t, 64> writes{};
+    std::array<std::uint8_t, 128> writes{};
     std::size_t writeCount = 0;
 };
 
@@ -58,5 +58,20 @@ int main() {
     const auto gameOverStart = memory.writeCount;
     assert((memory.writes[gameOverStart - 2] & 0xF8) == 0xE0);
     assert((memory.writes[gameOverStart - 1] & 0xF0) == 0xF0);
+
+    sounds.playBallFloorBounce();
+    const auto floorStart = memory.writeCount;
+    assert((memory.writes[floorStart - 2] & 0xF8) == 0xE0);
+    assert((memory.writes[floorStart - 1] & 0xF0) == 0xF0);
+    for (int frame = 0; frame < 6; ++frame) {
+        sounds.update();
+    }
+    assert(memory.writes[memory.writeCount - 1] == 0xFF);
+
+    sounds.playBallWallBounce();
+    const auto wallStart = memory.writeCount;
+    assert(memory.writes[wallStart - 4] == 0xFF);
+    assert((memory.writes[wallStart - 3] & 0xF0) == 0x80);
+    assert((memory.writes[wallStart - 1] & 0xF0) == 0x90);
     return 0;
 }
