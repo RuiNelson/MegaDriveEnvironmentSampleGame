@@ -66,14 +66,12 @@ void SampleGame::onVSync() {
 }
 
 void SampleGame::onHSync(int scanline) {
-    // Each callback covers a small block to keep the real 68000 IRQ handler
-    // comfortably shorter than the HBlank interval. Every line still gets an
-    // independent Plane B offset; Plane A remains fixed.
+    // One address command starts a contiguous block, then VDP auto-increment
+    // advances through all Plane A / Plane B pairs. This keeps the real 68000
+    // IRQ short enough while preserving an independent offset for every line.
     const int firstScanline = scanline - (vdp::kHSyncLineBatch - 1);
+    vdp::beginHorizontalScrollLines(memory_, firstScanline);
     for (int currentScanline = firstScanline; currentScanline <= scanline; ++currentScanline) {
-        if (currentScanline < 0) {
-            continue;
-        }
         const auto step = static_cast<unsigned>((currentScanline + backgroundWavePhase_) & 0x3F);
         int offset;
         if (step < 16u) {
@@ -85,7 +83,7 @@ void SampleGame::onHSync(int scanline) {
         } else {
             offset = -static_cast<int>(64u - step);
         }
-        vdp::writeHorizontalScrollLine(memory_, currentScanline, 0, static_cast<std::uint16_t>(offset));
+        vdp::appendHorizontalScrollLine(memory_, 0, static_cast<std::uint16_t>(offset));
     }
 }
 

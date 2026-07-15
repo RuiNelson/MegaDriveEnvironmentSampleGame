@@ -27,7 +27,7 @@ inline constexpr std::uint16_t kHScrollTable = 0xF000;
 inline constexpr int kPlaneWidth = 64;
 inline constexpr int kPlaneHeight = 32;
 /** Visible scanlines covered by each HBlank callback. */
-inline constexpr int kHSyncLineBatch = 4;
+inline constexpr int kHSyncLineBatch = 16;
 
 /** Writes one VDP register through the memory-mapped control port. */
 void writeRegister(memory::Memory &memory, std::uint8_t reg, std::uint8_t value);
@@ -47,11 +47,13 @@ void initialize(memory::Memory &memory);
 /** Enables the display after palettes, tiles and planes have been populated. */
 void finishInitialization(memory::Memory &memory);
 
-/** Updates the Plane A and Plane B horizontal offsets for one scanline. */
-void writeHorizontalScrollLine(memory::Memory &memory,
-                               int scanline,
-                               std::uint16_t planeA,
-                               std::uint16_t planeB);
+/** Positions the VDP write cursor at the first per-scanline HScroll pair. */
+void beginHorizontalScrollLines(memory::Memory &memory, int firstScanline);
+
+/** Appends one Plane A / Plane B pair after beginHorizontalScrollLines(). */
+void appendHorizontalScrollLine(memory::Memory &memory,
+                                std::uint16_t planeA,
+                                std::uint16_t planeB);
 
 /**
  * Loads all 16 colors of a hardware palette.
