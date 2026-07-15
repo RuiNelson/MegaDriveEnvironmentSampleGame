@@ -80,6 +80,10 @@ class BoingBallDemo final {
     memory::Memory &memory_;
     /** Output coordinate to unique 128x128 geometry coordinate; $FF is transparent. */
     std::uint8_t sourceCoordinate_[kMaximumBallSize];
+    /** Phase-resolved base colour for each packed 4-bit longitude/latitude pair. */
+    std::uint8_t textureBase_[256];
+    /** Non-empty tile mask from the last complete surface at occupiedBallSize_. */
+    std::uint8_t occupiedTiles_[32];
     int ballXFixed_ = 0;
     int ballYFixed_ = 0;
     int velocityXFixed_ = 0;
@@ -95,6 +99,7 @@ class BoingBallDemo final {
     std::uint8_t rasterBallSize_ = 96;
     std::uint8_t rasterThetaPhase_ = 0;
     std::uint8_t rasterPhiPhase_ = 0;
+    std::uint8_t occupiedBallSize_ = 0;
     std::uint8_t rotationTick_ = 0;
     std::uint8_t displayBank_ = 0;
     std::uint8_t rasterTileDimension_ = 12;
@@ -108,6 +113,7 @@ class BoingBallDemo final {
     bool shadowNeedsUpload_ = true;
     bool surfaceVisible_ = false;
     bool surfaceReadyForDma_ = false;
+    bool reuseTransparentTiles_ = false;
 };
 
 } // namespace sample::demo

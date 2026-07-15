@@ -54,12 +54,16 @@ Up to approach it continuously up to 128 pixels, or Down to move away down to
 64 pixels. It uses no pre-rendered animation frames. A packed 128x128 sphere
 lookup in ROM supplies shading, longitude and latitude for each final pixel;
 the shared C++ renderer evaluates the white/red/blue texture at the requested
-display resolution without first producing and enlarging a smaller image.
+display resolution without first producing and enlarging a smaller image. A
+256-byte phase table resolves both rotation axes once per surface, and each
+eight-pixel tile row is packed into one 32-bit Work RAM write.
 
 Only the visible tile rectangle is built: 64 pixels uses 64 tiles, the default
 96 pixels uses 144, and 128 pixels uses 256. A variable number of linked sprites
-displays that rectangle while four more form its scaled dithered shadow. The
-renderer also builds the wall's nine repeating patterns and all 320
+displays that rectangle while four more form its scaled dithered shadow. After
+learning a size's static silhouette, later rotations skip its fully transparent
+corner tiles; changing the continuous zoom safely rebuilds that occupancy mask.
+The renderer also builds the wall's nine repeating patterns and all 320
 perspective-floor patterns in software; it does not reuse the sample game's
 authored floor tile. Plane B draws the upright grid and the Window plane draws
 the perspective floor below the horizon. Floor and wall impacts trigger
