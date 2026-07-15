@@ -14,8 +14,8 @@ class RecordingMemory final : public sample::memory::Memory {
     std::uint8_t read8(sample::memory::Address address) override {
         return address == 0xA10001 && pal_ ? 0x40 : 0;
     }
-    std::uint16_t read16(sample::memory::Address) override {
-        return 0;
+    std::uint16_t read16(sample::memory::Address address) override {
+        return address == 0xC00008 ? static_cast<std::uint16_t>(verticalCounter << 8) : 0;
     }
     std::uint32_t read32(sample::memory::Address) override {
         return 0;
@@ -36,9 +36,6 @@ class RecordingMemory final : public sample::memory::Memory {
                 maximumBufferAddress = address;
             }
         }
-        if (address == sample::vdp::kControlPort && value == 0x5000) {
-            sawBallDmaDestination = true;
-        }
         if (address == sample::vdp::kControlPort && value == 0x0080) {
             sawDmaCommand = true;
         }
@@ -50,7 +47,6 @@ class RecordingMemory final : public sample::memory::Memory {
         bufferWordWrites = 0;
         minimumBufferAddress = 0xFFFFFFFF;
         maximumBufferAddress = 0;
-        sawBallDmaDestination = false;
         sawDmaCommand = false;
         for (auto &seen : sawRasterIndex) {
             seen = false;
@@ -58,12 +54,12 @@ class RecordingMemory final : public sample::memory::Memory {
     }
 
     static constexpr sample::memory::Address kBufferStart = 0xFF1000;
-    static constexpr sample::memory::Address kBufferEnd = 0xFF2200;
+    static constexpr sample::memory::Address kBufferEnd = 0xFF3000;
     bool pal_;
+    std::uint8_t verticalCounter = 0;
     std::size_t bufferWordWrites = 0;
     sample::memory::Address minimumBufferAddress = 0xFFFFFFFF;
     sample::memory::Address maximumBufferAddress = 0;
-    bool sawBallDmaDestination = false;
     bool sawDmaCommand = false;
     bool sawRasterIndex[16]{};
 };
@@ -75,20 +71,24 @@ int main() {
     sample::demo::BoingBallDemo demo{ntscMemory};
     demo.initialize();
     assert(demo.refreshRate() == 60);
-    assert(demo.displayedFps() == 30);
+    assert(demo.displayedFps() == 0);
+    // Nine wall tiles and 320 perspective-floor tiles are generated in
+    // software before being uploaded; no pre-authored graphics are sampled.
+    assert(ntscMemory.bufferWordWrites == (9 + 320) * 16);
 
     demo.activate();
     assert(demo.ballX() == 8);
     assert(demo.ballY() == 80);
+    assert(demo.ballSize() == 96);
 
     ntscMemory.resetRecording();
     demo.render();
-    // 144 tiles x 16 words exactly fill $FF1000-$FF21FF before one DMA.
+    // The default 96-pixel ball generates exactly 12x12 tiles: no fixed
+    // 128-pixel transparent canvas is rasterized.
     assert(ntscMemory.bufferWordWrites == 144 * 16);
     assert(ntscMemory.minimumBufferAddress == RecordingMemory::kBufferStart);
-    assert(ntscMemory.maximumBufferAddress == RecordingMemory::kBufferEnd - 2);
-    assert(ntscMemory.sawBallDmaDestination);
-    assert(ntscMemory.sawDmaCommand);
+    assert(ntscMemory.maximumBufferAddress == RecordingMemory::kBufferStart + 144 * 32 - 2);
+    assert(!ntscMemory.sawDmaCommand);
     assert(ntscMemory.sawRasterIndex[1] || ntscMemory.sawRasterIndex[2] ||
            ntscMemory.sawRasterIndex[3]);
     assert(ntscMemory.sawRasterIndex[4] || ntscMemory.sawRasterIndex[5] ||
@@ -96,22 +96,40 @@ int main() {
     assert(ntscMemory.sawRasterIndex[8] || ntscMemory.sawRasterIndex[9] ||
            ntscMemory.sawRasterIndex[10]);
 
-    // Tile persistence halves the raster cost: motion renders on the first
-    // update without rebuilding tiles, then the second update rebuilds them.
-    (void)demo.update();
+    // The completed Work RAM surface is DMA'd on the next VBlank, then a new
+    // surface is built using whatever beam-time budget remains.
     ntscMemory.resetRecording();
     demo.render();
-    assert(ntscMemory.bufferWordWrites == 0);
-    (void)demo.update();
-    demo.render();
+    assert(ntscMemory.sawDmaCommand);
     assert(ntscMemory.bufferWordWrites == 144 * 16);
 
-    // A 60-VBlank NTSC sample contains thirty software-rasterized images.
+    // Zoom changes continuously by one pixel per held-button VBlank.
+    demo.activate();
+    for (int frame = 0; frame < 32; ++frame) {
+        (void)demo.update(true, false);
+    }
+    assert(demo.ballSize() == 128);
+    for (int frame = 0; frame < 64; ++frame) {
+        (void)demo.update(false, true);
+    }
+    assert(demo.ballSize() == 64);
+
+    // The 64-pixel display size uses only 8x8 tiles. The first render finishes
+    // the already-frozen 96-pixel surface; the second starts the new size.
+    ntscMemory.resetRecording();
+    demo.render();
+    ntscMemory.resetRecording();
+    demo.render();
+    assert(ntscMemory.bufferWordWrites == 64 * 16);
+
+    // With an unconstrained mock beam counter, PC-like execution completes a
+    // surface per callback after the one-frame pipeline fill.
     demo.activate();
     for (int frame = 0; frame < 60; ++frame) {
         (void)demo.update();
+        demo.render();
     }
-    assert(demo.displayedFps() == 30);
+    assert(demo.displayedFps() == 59);
 
     int floorHits = 0;
     int wallHits = 0;
@@ -125,7 +143,26 @@ int main() {
     }
     assert(floorHits > 0);
     assert(wallHits > 0);
-    assert(demo.displayedFps() == 30);
+    assert(demo.displayedFps() == 59);
+
+    // A real-MD-like beam deadline yields after one bounded tile;
+    // clearing the deadline lets the exact same renderer resume next VBlank.
+    RecordingMemory budgetMemory;
+    sample::demo::BoingBallDemo budgetDemo{budgetMemory};
+    budgetDemo.initialize();
+    budgetDemo.activate();
+    budgetMemory.resetRecording();
+    budgetMemory.verticalCounter = 192;
+    budgetDemo.render();
+    assert(budgetMemory.bufferWordWrites == 16);
+    assert(!budgetMemory.sawDmaCommand);
+    budgetMemory.resetRecording();
+    budgetMemory.verticalCounter = 0;
+    budgetDemo.render();
+    assert(budgetMemory.bufferWordWrites == (144 - 1) * 16);
+    budgetMemory.resetRecording();
+    budgetDemo.render();
+    assert(budgetMemory.sawDmaCommand);
 
     RecordingMemory palMemory{true};
     sample::demo::BoingBallDemo palDemo{palMemory};
@@ -134,7 +171,8 @@ int main() {
     assert(palDemo.refreshRate() == 50);
     for (int frame = 0; frame < 50; ++frame) {
         (void)palDemo.update();
+        palDemo.render();
     }
-    assert(palDemo.displayedFps() == 25);
+    assert(palDemo.displayedFps() == 49);
     return 0;
 }

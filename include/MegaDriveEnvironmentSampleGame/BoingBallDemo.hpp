@@ -26,83 +26,60 @@ class BoingBallDemo final {
     /** Retains `memory` by reference; the backend must outlive the demo. */
     explicit BoingBallDemo(memory::Memory &memory);
 
-    /** Builds the bounded per-pixel sphere lookup and detects 50/60 Hz. */
+    /** Detects 50/60 Hz and uploads the software-generated background patterns. */
     void initialize();
 
     /** Resets motion and installs the demo palettes, background, text and shadow. */
     void activate();
 
-    /** Advances motion/rotation/FPS and reports new floor/wall impacts. */
-    [[nodiscard]] BounceEvents update();
+    /** Advances motion/rotation/FPS, zoom input and collision events. */
+    [[nodiscard]] BounceEvents update(bool zoomIn = false, bool zoomOut = false);
 
-    /** Rasterizes through Work RAM/DMA when needed and updates linked sprites. */
+    /** Updates sprites/DMA in VBlank, then rasterizes within the VDP beam budget. */
     void render();
 
     /** Current top-left ball position, exposed for deterministic tests. */
     [[nodiscard]] int ballX() const;
     [[nodiscard]] int ballY() const;
+    [[nodiscard]] int ballSize() const;
 
     /** Last complete one-second VBlank sample and detected display refresh. */
     [[nodiscard]] std::uint8_t displayedFps() const;
     [[nodiscard]] std::uint8_t refreshRate() const;
 
   private:
-    struct SurfacePoint {
-        /** Red shade in the high nibble and white shade in the low nibble. */
-        std::uint8_t colors;
-        /** Approximate texture longitude in 32 angular steps. */
-        std::uint8_t longitude;
-        /** Approximate texture latitude in 32 angular steps. */
-        std::uint8_t latitude;
-    };
+    static constexpr int kMaximumBallSize = 128;
 
-    // The 48x48 logical raster is expanded 2x2 into a 96x96 image: exactly
-    // 30% of the 320-pixel display width, at one quarter of the 3D pixel cost.
-    static constexpr int kLogicalBallSize = 48;
-    static constexpr int kDisplayedBallSize = kLogicalBallSize * 2;
-    static constexpr int kSurfacePointCount = kLogicalBallSize * kLogicalBallSize;
+    /** Freezes zoom/rotation and builds a no-duplicate high-resolution coordinate map. */
+    void beginSurfaceRaster();
 
-    /** Integer square root used only while building the fixed geometry lookup. */
-    [[nodiscard]] static int integerSquareRoot(int value);
+    /** Builds one tile at the current variable-size sprite cursor. */
+    void rasterizeNextBallTile();
 
-    /** Small division-free atan approximation used only during initialization. */
-    [[nodiscard]] static std::uint8_t approximateAngle(int coordinate, int depth);
+    /** Uses the remaining display period without crossing the next VBlank. */
+    void rasterizeBallUntilBudget();
 
-    /** Returns one pre-shaded checker pixel for the current theta/phi rotation. */
-    [[nodiscard, gnu::always_inline]] inline std::uint8_t rasterizedPixel(int x, int y) const {
-        const auto &point = surface_[y * kLogicalBallSize + x];
-        const auto white = static_cast<std::uint8_t>(point.colors & 0x0Fu);
-        if (point.colors == 0 || point.colors == 0x77) {
-            return white;
-        }
+    /** Reads the VDP beam position through memory::Memory to protect VBlank cadence. */
+    [[nodiscard]] bool videoBudgetExpired() const;
 
-        const auto longitude = static_cast<std::uint8_t>(point.longitude + thetaPhase_);
-        const auto latitude = static_cast<std::uint8_t>(point.latitude + phiPhase_);
-        if (((longitude ^ latitude) & 4u) != 0) {
-            return white;
-        }
+    /** Applies a new size while preserving the ball centre. */
+    void setBallSize(std::uint8_t size);
 
-        const auto red = static_cast<std::uint8_t>(point.colors >> 4);
-        const bool blue = ((longitude + latitude) & 8u) != 0;
-        return blue ? static_cast<std::uint8_t>(white + 4u) : red;
-    }
-
-    /** Builds nine expanded 4x4 sprite blocks in the reserved Work RAM buffer. */
-    void rasterizeBallTiles();
-
-    /** Creates the fixed 96x8 dithered ellipse used by three shadow sprites. */
+    /** Creates the scaled 128x8 dithered ellipse used by four shadow sprites. */
     void uploadShadowTiles();
 
-    /** Creates the static perspective grid and Window-plane name table. */
-    void uploadFloorGrid();
+    /** Creates software-generated wall/floor patterns and the floor name table. */
+    void uploadBackgroundTiles();
+
+    /** Maps the software-generated repeating wall grid to visible Plane B. */
+    void mapWallGrid();
 
     /** Replaces the numeric part of the static FPS label. */
     void renderFps();
 
     memory::Memory &memory_;
-    // initialize() writes every entry; omitting value-initialization prevents
-    // a freestanding compiler from introducing an unavailable memset call.
-    SurfacePoint surface_[kSurfacePointCount];
+    /** Output coordinate to unique 128x128 geometry coordinate; $FF is transparent. */
+    std::uint8_t sourceCoordinate_[kMaximumBallSize];
     int ballXFixed_ = 0;
     int ballYFixed_ = 0;
     int velocityXFixed_ = 0;
@@ -112,11 +89,25 @@ class BoingBallDemo final {
     std::uint8_t refreshRate_ = 60;
     std::uint8_t framesInSample_ = 0;
     std::uint8_t sampleAge_ = 0;
-    std::uint8_t displayedFps_ = 60;
+    std::uint8_t displayedFps_ = 0;
+    std::uint8_t ballSize_ = 96;
+    std::uint8_t displayedBallSize_ = 96;
+    std::uint8_t rasterBallSize_ = 96;
+    std::uint8_t rasterThetaPhase_ = 0;
+    std::uint8_t rasterPhiPhase_ = 0;
+    std::uint8_t rotationTick_ = 0;
+    std::uint8_t displayBank_ = 0;
+    std::uint8_t rasterTileDimension_ = 12;
+    std::uint8_t rasterBlockX_ = 0;
+    std::uint8_t rasterBlockY_ = 0;
+    std::uint8_t rasterTileX_ = 0;
+    std::uint8_t rasterTileY_ = 0;
+    std::uint16_t rasterTileCount_ = 144;
+    std::uint16_t rasterNextTile_ = 0;
     bool fpsNeedsRender_ = true;
-    bool rasterizeThisFrame_ = true;
-    bool oddAnimationFrame_ = false;
-    bool oddPhiFrame_ = false;
+    bool shadowNeedsUpload_ = true;
+    bool surfaceVisible_ = false;
+    bool surfaceReadyForDma_ = false;
 };
 
 } // namespace sample::demo

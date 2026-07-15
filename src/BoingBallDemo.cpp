@@ -11,15 +11,17 @@ namespace sample::demo {
 namespace {
 
 constexpr std::uint16_t kFontTile = 1;
-constexpr std::uint16_t kBallFirstTile = 128;
-constexpr std::uint16_t kBallTileCount = 144;
-constexpr std::uint16_t kShadowFirstTile = kBallFirstTile + kBallTileCount;
-constexpr std::uint16_t kBallTileWordCount = kBallTileCount * 16;
-constexpr std::uint16_t kFloorFirstTile = 300;
-constexpr std::uint16_t kTileBufferTileCapacity = 144;
+constexpr std::uint16_t kBallBankTileCount = 256;
+constexpr std::uint16_t kBallBank0FirstTile = 128;
+constexpr std::uint16_t kBallBank1FirstTile = kBallBank0FirstTile + kBallBankTileCount;
+constexpr std::uint16_t kShadowFirstTile = kBallBank1FirstTile + kBallBankTileCount;
+constexpr std::uint16_t kWallFirstTile = kShadowFirstTile + 16;
+constexpr std::uint16_t kWallTileCount = 3 * 3;
+constexpr std::uint16_t kFloorFirstTile = kWallFirstTile + kWallTileCount;
+constexpr std::uint16_t kTileBufferTileCapacity = 256;
 constexpr int kFloorFirstRow = 20;
 
-// $FF0000-$FF0005 belong to the IRQ bridge. This explicit 4608-byte scratch
+// $FF0000-$FF0005 belong to the IRQ bridge. This explicit 8192-byte scratch
 // region is safely below the supervisor stack and is the sole dynamic tile
 // buffer. Both targets access it through the same memory bus API.
 constexpr memory::Address kTileBufferAddress = 0xFF1000;
@@ -27,23 +29,86 @@ constexpr memory::Address kTileBufferAddress = 0xFF1000;
 constexpr int kFixedShift = 8;
 constexpr int kFixedOne = 1 << kFixedShift;
 constexpr int kLeftEdge = 8;
-constexpr int kRightEdge = 216;
-constexpr int kFloorY = 112;
+constexpr int kScreenWidth = 320;
+constexpr int kRightInset = 8;
+constexpr int kBallFloor = 208;
 constexpr int kShadowY = 202;
-constexpr int kSphereCenter = 23;
-constexpr int kSphereRadius = 23;
+constexpr std::uint8_t kMinimumZoomSize = 64;
+constexpr std::uint8_t kDefaultZoomSize = 96;
+constexpr std::uint8_t kMaximumZoomSize = 128;
 
 constexpr memory::Address kHardwareVersionRegister = 0xA10001;
+constexpr memory::Address kHvCounter = 0xC00008;
 constexpr std::uint8_t kPalVideoBit = 0x40;
+constexpr std::uint8_t kRasterDeadlineLine = 192;
+constexpr std::uint8_t kVBlankFirstLine = 224;
 
-// Squares for coordinates -23..24. Keeping the products in ROM avoids the
-// 68000 compiler's 32-bit multiplication runtime helper during initialization.
-constexpr std::uint16_t kCoordinateSquares[48]{
-    529, 484, 441, 400, 361, 324, 289, 256, 225, 196, 169, 144,
-    121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0,
-    1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144,
-    169, 196, 225, 256, 289, 324, 361, 400, 441, 484, 529, 576,
+constexpr int kGeometrySize = 128;
+constexpr int kGeometryCenter = 63;
+constexpr int kGeometryRadius = 63;
+constexpr std::uint16_t kSurfaceKind = 0x1000;
+constexpr std::uint16_t kRimKind = 0x2000;
+
+struct PackedSurfaceTable {
+    std::uint16_t points[kGeometrySize * kGeometrySize]{};
 };
+
+consteval int geometrySquareRoot(int value) {
+    int root = 0;
+    int bit = 1 << 14;
+    while (bit > value) {
+        bit >>= 2;
+    }
+    while (bit != 0) {
+        if (value >= root + bit) {
+            value -= root + bit;
+            root = (root >> 1) + bit;
+        } else {
+            root >>= 1;
+        }
+        bit >>= 2;
+    }
+    return root;
+}
+
+consteval std::uint8_t geometryAngle(int coordinate, int depth) {
+    const int magnitude = coordinate < 0 ? -coordinate : coordinate;
+    const int denominator = magnitude + depth;
+    const int angleMagnitude = denominator == 0 ? 0 : (magnitude << 4) / denominator;
+    const int offset = coordinate < 0 ? -angleMagnitude : angleMagnitude;
+    return static_cast<std::uint8_t>((16 + offset) & 31);
+}
+
+consteval PackedSurfaceTable buildSurfaceTable() {
+    PackedSurfaceTable table;
+    for (int y = 0; y < kGeometrySize; ++y) {
+        const int sphereY = y - kGeometryCenter;
+        for (int x = 0; x < kGeometrySize; ++x) {
+            const int sphereX = x - kGeometryCenter;
+            const int radiusSquared = sphereX * sphereX + sphereY * sphereY;
+            if (radiusSquared > kGeometryRadius * kGeometryRadius) {
+                continue;
+            }
+
+            const int depth = geometrySquareRoot(
+                kGeometryRadius * kGeometryRadius - radiusSquared);
+            if (depth <= 8) {
+                table.points[y * kGeometrySize + x] = kRimKind;
+                continue;
+            }
+
+            const int light = depth - sphereX / 2 - sphereY / 2;
+            const std::uint16_t shade = light >= 64 ? 2 : (light >= 28 ? 1 : 0);
+            const auto longitude = geometryAngle(sphereX, depth);
+            const auto latitude = geometryAngle(sphereY, depth);
+            table.points[y * kGeometrySize + x] = static_cast<std::uint16_t>(
+                kSurfaceKind | (shade << 10) | (latitude << 5) | longitude);
+        }
+    }
+    return table;
+}
+
+inline constexpr PackedSurfaceTable kSurfaceTable = buildSurfaceTable();
 
 // CRAM words use the Mega Drive's 0000BBB0GGG0RRR0 channel layout.
 constexpr std::uint16_t kTextPalette[16]{
@@ -63,6 +128,44 @@ constexpr std::uint16_t kShadowPalette[16]{
 constexpr std::uint16_t kBackdropPalette[16]{
     0x0000, 0x0808, 0x0A0A, 0x0AAA, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
+
+[[gnu::always_inline]] inline std::uint8_t surfacePixel(
+    int x, int y, std::uint8_t theta, std::uint8_t phi) {
+    const auto point = kSurfaceTable.points[(y << 7) + x];
+    const auto kind = static_cast<std::uint16_t>(point & 0x3000u);
+    if (kind == 0) {
+        return 0;
+    }
+    if (kind == kRimKind) {
+        return 7;
+    }
+
+    const auto shade = static_cast<std::uint8_t>((point >> 10) & 3u);
+    const auto longitude = static_cast<std::uint8_t>((point & 31u) + theta);
+    const auto latitude = static_cast<std::uint8_t>(((point >> 5) & 31u) + phi);
+    const auto white = static_cast<std::uint8_t>(4u + shade);
+    if (((longitude ^ latitude) & 4u) != 0) {
+        return white;
+    }
+    const bool blue = ((longitude + latitude) & 8u) != 0;
+    return blue ? static_cast<std::uint8_t>(8u + shade)
+                : static_cast<std::uint8_t>(1u + shade);
+}
+
+[[gnu::always_inline]] inline std::uint8_t canvasPixel(
+    int x, int y, const std::uint8_t *coordinates,
+    std::uint8_t theta, std::uint8_t phi) {
+    const auto sourceX = coordinates[x];
+    const auto sourceY = coordinates[y];
+    if (sourceX == 0xFF || sourceY == 0xFF) {
+        return 0;
+    }
+    return surfacePixel(sourceX, sourceY, theta, phi);
+}
+
+[[gnu::always_inline]] inline std::uint8_t wallGridPixel(int x, int y) {
+    return x == 0 || y == 0 ? 1 : 3;
+}
 
 [[gnu::always_inline]] inline std::uint8_t floorGridPixel(int x, int y) {
     // Perspective depth lines become progressively farther apart toward the
@@ -91,47 +194,12 @@ BoingBallDemo::BoingBallDemo(memory::Memory &memory) : memory_(memory) {
 }
 
 void BoingBallDemo::initialize() {
-    // Build the immutable sphere geometry once. Runtime rasterization then
-    // needs no square roots, divisions, heap storage, floating point or trig.
-    for (int y = 0; y < kLogicalBallSize; ++y) {
-        const int sphereY = y - kSphereCenter;
-        for (int x = 0; x < kLogicalBallSize; ++x) {
-            const int sphereX = x - kSphereCenter;
-            const int radiusSquared = kCoordinateSquares[x] + kCoordinateSquares[y];
-            auto &point = surface_[y * kLogicalBallSize + x];
-            if (radiusSquared > kSphereRadius * kSphereRadius) {
-                point.colors = 0;
-                point.longitude = 0;
-                point.latitude = 0;
-                continue;
-            }
-
-            const int depth = integerSquareRoot(kSphereRadius * kSphereRadius - radiusSquared);
-            point.longitude = approximateAngle(sphereX, depth);
-            point.latitude = approximateAngle(sphereY, depth);
-
-            if (depth <= 3) {
-                point.colors = 0x77;
-                continue;
-            }
-
-            // Lighting never changes with texture rotation. Red and white are
-            // packed here; the matching blue shade is four palette indices
-            // above white, avoiding another byte in the sphere lookup.
-            const int light = depth - sphereX / 2 - sphereY / 2;
-            const std::uint8_t shade = light >= 24 ? 2 : (light >= 11 ? 1 : 0);
-            const auto red = static_cast<std::uint8_t>(1 + shade);
-            const auto white = static_cast<std::uint8_t>(4 + shade);
-            point.colors = static_cast<std::uint8_t>((red << 4) | white);
-        }
-    }
-
     refreshRate_ = (memory_.read8(kHardwareVersionRegister) & kPalVideoBit) != 0 ? 50 : 60;
-    displayedFps_ = static_cast<std::uint8_t>(refreshRate_ >> 1);
-    uploadFloorGrid();
+    uploadBackgroundTiles();
 }
 
 void BoingBallDemo::activate() {
+    ballSize_ = kDefaultZoomSize;
     ballXFixed_ = kLeftEdge * kFixedOne;
     ballYFixed_ = 80 * kFixedOne;
     velocityXFixed_ = 320; // 1.25 pixels per displayed frame
@@ -140,11 +208,26 @@ void BoingBallDemo::activate() {
     phiPhase_ = 0;
     framesInSample_ = 0;
     sampleAge_ = 0;
-    displayedFps_ = static_cast<std::uint8_t>(refreshRate_ >> 1);
+    displayedFps_ = 0;
+    displayedBallSize_ = kDefaultZoomSize;
+    rasterBallSize_ = kDefaultZoomSize;
+    rasterThetaPhase_ = 0;
+    rasterPhiPhase_ = 0;
+    rotationTick_ = 0;
+    displayBank_ = 0;
+    rasterTileDimension_ = 12;
+    rasterBlockX_ = 0;
+    rasterBlockY_ = 0;
+    rasterTileX_ = 0;
+    rasterTileY_ = 0;
+    rasterTileCount_ = 144;
+    rasterNextTile_ = 0;
     fpsNeedsRender_ = true;
-    rasterizeThisFrame_ = true;
-    oddAnimationFrame_ = false;
-    oddPhiFrame_ = false;
+    shadowNeedsUpload_ = true;
+    surfaceVisible_ = false;
+    surfaceReadyForDma_ = false;
+    setBallSize(kDefaultZoomSize);
+    beginSurfaceRaster();
 
     vdp::loadPalette(memory_, 0, kTextPalette);
     vdp::loadPalette(memory_, 1, kBallPalette);
@@ -152,100 +235,142 @@ void BoingBallDemo::activate() {
     vdp::loadPalette(memory_, 3, kBackdropPalette);
     vdp::writeRegister(memory_, 0x07, 0x33); // grey backdrop behind the wall grid
 
-    // Only visible Plane A cells need clearing during the screen transition.
-    // Plane B deliberately retains the sample's bordered floor tile; the demo
-    // palette turns it into a subdued grey Amiga-style backdrop grid.
+    // Only visible name-table cells need replacing during the transition.
+    // Both grid surfaces reference patterns built by uploadBackgroundTiles().
     vdp::fillPlaneArea(memory_, vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    mapWallGrid();
+    vdp::beginHorizontalScrollLines(memory_, 0);
+    for (int scanline = 0; scanline < 224; ++scanline) {
+        vdp::appendHorizontalScrollLine(memory_, 0, 0);
+    }
     vdp::writeText(memory_, vdp::kPlaneA, 2, 1, "SOFTWARE 3D BOING BALL", kFontTile);
     vdp::writeText(memory_, vdp::kPlaneA, 31, 1, "FPS", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 14, 3, "START RETURN", kFontTile);
+    vdp::writeText(memory_, vdp::kPlaneA, 7, 3, "UP/DOWN ZOOM   START RETURN", kFontTile);
 
     // The Window plane replaces Plane A below the horizon, yielding a second
     // perspective surface while Plane B remains the upright wall grid.
     vdp::writeRegister(memory_, 0x11, 0x00);
     vdp::writeRegister(memory_, 0x12, static_cast<std::uint8_t>(0x80 | kFloorFirstRow));
 
-    uploadShadowTiles();
     renderFps();
 }
 
-BounceEvents BoingBallDemo::update() {
+BounceEvents BoingBallDemo::update(bool zoomIn, bool zoomOut) {
     BounceEvents events;
+
+    if (zoomIn != zoomOut) {
+        if (zoomIn && ballSize_ < kMaximumZoomSize) {
+            setBallSize(static_cast<std::uint8_t>(ballSize_ + 1u));
+        } else if (zoomOut && ballSize_ > kMinimumZoomSize) {
+            setBallSize(static_cast<std::uint8_t>(ballSize_ - 1u));
+        }
+    }
+
     ballXFixed_ += velocityXFixed_;
     if (ballXFixed_ <= kLeftEdge * kFixedOne) {
         ballXFixed_ = kLeftEdge * kFixedOne;
         velocityXFixed_ = -velocityXFixed_;
         events.hitWall = true;
-    } else if (ballXFixed_ >= kRightEdge * kFixedOne) {
-        ballXFixed_ = kRightEdge * kFixedOne;
-        velocityXFixed_ = -velocityXFixed_;
-        events.hitWall = true;
+    } else {
+        const int rightEdge = kScreenWidth - kRightInset - ballSize_;
+        if (ballXFixed_ >= rightEdge * kFixedOne) {
+            ballXFixed_ = rightEdge * kFixedOne;
+            velocityXFixed_ = -velocityXFixed_;
+            events.hitWall = true;
+        }
     }
 
     velocityYFixed_ += 48; // 0.1875 pixels/frame^2
     ballYFixed_ += velocityYFixed_;
-    if (ballYFixed_ >= kFloorY * kFixedOne) {
-        ballYFixed_ = kFloorY * kFixedOne;
+    const int floorY = kBallFloor - ballSize_;
+    if (ballYFixed_ >= floorY * kFixedOne) {
+        ballYFixed_ = floorY * kFixedOne;
         velocityYFixed_ = -1408; // 5.5 pixels/frame upwards
         events.hitFloor = true;
     }
 
-    // The silhouette still moves at every VBlank, while the relatively costly
-    // software texture update runs at 30 Hz (25 Hz PAL). Tile persistence in
-    // VRAM makes this temporal decimation free between raster passes.
-    oddAnimationFrame_ = !oddAnimationFrame_;
-    rasterizeThisFrame_ = !oddAnimationFrame_;
-    if (rasterizeThisFrame_) {
+    rotationTick_ = static_cast<std::uint8_t>((rotationTick_ + 1u) & 3u);
+    if ((rotationTick_ & 1u) == 0) {
         thetaPhase_ = static_cast<std::uint8_t>((thetaPhase_ + 1u) & 31u);
-        oddPhiFrame_ = !oddPhiFrame_;
-        if (!oddPhiFrame_) {
-            phiPhase_ = static_cast<std::uint8_t>((phiPhase_ + 1u) & 31u);
-        }
-        ++framesInSample_;
     }
-
-    ++sampleAge_;
-    if (sampleAge_ >= refreshRate_) {
-        displayedFps_ = framesInSample_;
-        framesInSample_ = 0;
-        sampleAge_ = 0;
-        fpsNeedsRender_ = true;
+    if (rotationTick_ == 0) {
+        phiPhase_ = static_cast<std::uint8_t>((phiPhase_ + 1u) & 31u);
     }
     return events;
 }
 
 void BoingBallDemo::render() {
-    if (rasterizeThisFrame_) {
-        rasterizeBallTiles();
+    if (surfaceReadyForDma_) {
+        const auto inactiveBankFirstTile = displayBank_ == 0
+            ? kBallBank1FirstTile : kBallBank0FirstTile;
         vdp::dmaToVram(memory_, kTileBufferAddress,
-                       static_cast<std::uint16_t>(kBallFirstTile * 32), kBallTileWordCount);
-        rasterizeThisFrame_ = false;
+                       static_cast<std::uint16_t>(inactiveBankFirstTile * 32),
+                       static_cast<std::uint16_t>(rasterTileCount_ * 16));
+
+        displayBank_ ^= 1u;
+        if (displayedBallSize_ != rasterBallSize_) {
+            shadowNeedsUpload_ = true;
+        }
+        displayedBallSize_ = rasterBallSize_;
+        surfaceVisible_ = true;
+        ++framesInSample_;
+        surfaceReadyForDma_ = false;
+        beginSurfaceRaster();
     }
 
-    const int x = ballX();
-    const int y = ballY();
-    // Nine linked 4x4 sprites form the 96x96 image. A scanline intersects only
-    // three of them, comfortably below the H40 sprite-per-line limit.
+    if (++sampleAge_ >= refreshRate_) {
+        displayedFps_ = framesInSample_;
+        framesInSample_ = 0;
+        sampleAge_ = 0;
+        fpsNeedsRender_ = true;
+    }
+    if (shadowNeedsUpload_) {
+        uploadShadowTiles();
+    }
+
+    const int centreX = ballX() + (ballSize_ >> 1);
+    const int centreY = ballY() + (ballSize_ >> 1);
+    const int x = centreX - (displayedBallSize_ >> 1);
+    const int y = surfaceVisible_
+        ? centreY - (displayedBallSize_ >> 1) : -128;
+    const int tileDimension = (displayedBallSize_ + 7) >> 3;
+    const int blockCount = (tileDimension + 3) >> 2;
+    const int ballSpriteCount = blockCount * blockCount;
+    const auto displayedBankFirstTile = displayBank_ == 0
+        ? kBallBank0FirstTile : kBallBank1FirstTile;
     int sprite = 0;
-    for (int blockY = 0; blockY < 3; ++blockY) {
-        for (int blockX = 0; blockX < 3; ++blockX) {
-            const int next = sprite + 1;
-            const auto tile = static_cast<std::uint16_t>(kBallFirstTile + sprite * 16);
+    std::uint16_t tileOffset = 0;
+    for (int blockY = 0; blockY < blockCount; ++blockY) {
+        const int remainingRows = tileDimension - blockY * 4;
+        const int height = remainingRows < 4 ? remainingRows : 4;
+        for (int blockX = 0; blockX < blockCount; ++blockX) {
+            const int remainingColumns = tileDimension - blockX * 4;
+            const int width = remainingColumns < 4 ? remainingColumns : 4;
+            const int next = sprite + 1 < ballSpriteCount ? sprite + 1 : 16;
+            const auto tile = static_cast<std::uint16_t>(displayedBankFirstTile + tileOffset);
             vdp::writeSprite(memory_, sprite, x + blockX * 32, y + blockY * 32,
-                             4, 4, tile, 1, next);
+                             width, height, tile, 1, next);
+            tileOffset = static_cast<std::uint16_t>(tileOffset + width * height);
             ++sprite;
         }
     }
 
     // Lower SAT indices win sprite overlap, so the ball naturally occludes its
     // ground shadow at the bottom of each bounce.
-    vdp::writeSprite(memory_, 9, x, kShadowY, 4, 1, kShadowFirstTile, 2, 10);
-    vdp::writeSprite(memory_, 10, x + 32, kShadowY, 4, 1, kShadowFirstTile + 4, 2, 11);
-    vdp::writeSprite(memory_, 11, x + 64, kShadowY, 4, 1, kShadowFirstTile + 8, 2, 0);
+    const int shadowX = centreX - (kMaximumBallSize >> 1);
+    const int shadowY = surfaceVisible_ ? kShadowY : -128;
+    for (int block = 0; block < 4; ++block) {
+        const int shadowSprite = 16 + block;
+        const int next = block == 3 ? 0 : shadowSprite + 1;
+        vdp::writeSprite(memory_, shadowSprite, shadowX + block * 32, shadowY,
+                         4, 1, static_cast<std::uint16_t>(kShadowFirstTile + block * 4), 2, next);
+    }
 
     if (fpsNeedsRender_) {
         renderFps();
     }
+
+    rasterizeBallUntilBudget();
 }
 
 int BoingBallDemo::ballX() const {
@@ -256,6 +381,10 @@ int BoingBallDemo::ballY() const {
     return ballYFixed_ >> kFixedShift;
 }
 
+int BoingBallDemo::ballSize() const {
+    return ballSize_;
+}
+
 std::uint8_t BoingBallDemo::displayedFps() const {
     return displayedFps_;
 }
@@ -264,82 +393,146 @@ std::uint8_t BoingBallDemo::refreshRate() const {
     return refreshRate_;
 }
 
-int BoingBallDemo::integerSquareRoot(int value) {
-    int root = 0;
-    int bit = 1 << 14;
-    while (bit > value) {
-        bit >>= 2;
+void BoingBallDemo::setBallSize(std::uint8_t size) {
+    if (size < kMinimumZoomSize) {
+        size = kMinimumZoomSize;
+    } else if (size > kMaximumZoomSize) {
+        size = kMaximumZoomSize;
     }
-    while (bit != 0) {
-        if (value >= root + bit) {
-            value -= root + bit;
-            root = (root >> 1) + bit;
-        } else {
-            root >>= 1;
-        }
-        bit >>= 2;
+
+    const int sizeDelta = static_cast<int>(ballSize_) - size;
+    ballXFixed_ += sizeDelta * (kFixedOne >> 1);
+    ballYFixed_ += sizeDelta * (kFixedOne >> 1);
+    ballSize_ = size;
+
+    const int rightEdge = kScreenWidth - kRightInset - ballSize_;
+    if (ballXFixed_ < kLeftEdge * kFixedOne) {
+        ballXFixed_ = kLeftEdge * kFixedOne;
+    } else if (ballXFixed_ > rightEdge * kFixedOne) {
+        ballXFixed_ = rightEdge * kFixedOne;
     }
-    return root;
+    const int floorY = kBallFloor - ballSize_;
+    if (ballYFixed_ > floorY * kFixedOne) {
+        ballYFixed_ = floorY * kFixedOne;
+    }
+
 }
 
-std::uint8_t BoingBallDemo::approximateAngle(int coordinate, int depth) {
-    const int magnitude = coordinate < 0 ? -coordinate : coordinate;
-    const int denominator = magnitude + depth;
-    int angleMagnitude = 0;
-    int numerator = magnitude << 4;
-    while (denominator != 0 && numerator >= denominator) {
-        numerator -= denominator;
-        ++angleMagnitude;
+void BoingBallDemo::beginSurfaceRaster() {
+    rasterBallSize_ = ballSize_;
+    rasterThetaPhase_ = thetaPhase_;
+    rasterPhiPhase_ = phiPhase_;
+
+    for (int output = 0; output < kMaximumBallSize; ++output) {
+        sourceCoordinate_[output] = 0xFF;
     }
-    const int offset = coordinate < 0 ? -angleMagnitude : angleMagnitude;
-    return static_cast<std::uint8_t>((16 + offset) & 31);
-}
-
-void BoingBallDemo::rasterizeBallTiles() {
-    memory::Address destination = kTileBufferAddress;
-
-    // VDP sprite patterns are column-major. Each of the nine blocks is a 4x4
-    // sprite. Every logical source pixel becomes a 2x2 output block, so the
-    // displayed diameter doubles while only 48x48 3D samples are evaluated.
-    for (int blockY = 0; blockY < 3; ++blockY) {
-        for (int blockX = 0; blockX < 3; ++blockX) {
-            for (int tileX = 0; tileX < 4; ++tileX) {
-                for (int tileY = 0; tileY < 4; ++tileY) {
-                    for (int logicalRow = 0; logicalRow < 4; ++logicalRow) {
-                        const int x = (blockX * 32 + tileX * 8) >> 1;
-                        const int y = (blockY * 32 + tileY * 8) / 2 + logicalRow;
-                        const auto pixel0 = rasterizedPixel(x, y);
-                        const auto pixel1 = rasterizedPixel(x + 1, y);
-                        const auto pixel2 = rasterizedPixel(x + 2, y);
-                        const auto pixel3 = rasterizedPixel(x + 3, y);
-                        const auto left = static_cast<std::uint16_t>(
-                            (pixel0 << 12) | (pixel0 << 8) | (pixel1 << 4) | pixel1);
-                        const auto right = static_cast<std::uint16_t>(
-                            (pixel2 << 12) | (pixel2 << 8) | (pixel3 << 4) | pixel3);
-
-                        // Duplicate the row vertically in the tile buffer.
-                        memory_.write16(destination, left);
-                        memory_.write16(destination + 2, right);
-                        memory_.write16(destination + 4, left);
-                        memory_.write16(destination + 6, right);
-                        destination += 8;
-                    }
-                }
-            }
+    int source = 0;
+    int error = 0;
+    const int extraSourceSteps = kMaximumBallSize - rasterBallSize_;
+    for (int output = 0; output < rasterBallSize_; ++output) {
+        sourceCoordinate_[output] = static_cast<std::uint8_t>(source);
+        ++source;
+        error += extraSourceSteps;
+        if (error >= rasterBallSize_) {
+            error -= rasterBallSize_;
+            ++source;
         }
     }
+
+    rasterTileDimension_ = static_cast<std::uint8_t>((rasterBallSize_ + 7u) >> 3);
+    rasterTileCount_ = static_cast<std::uint16_t>(
+        rasterTileDimension_ * rasterTileDimension_);
+    rasterNextTile_ = 0;
+    rasterBlockX_ = 0;
+    rasterBlockY_ = 0;
+    rasterTileX_ = 0;
+    rasterTileY_ = 0;
+}
+
+void BoingBallDemo::rasterizeNextBallTile() {
+    const int x = (rasterBlockX_ * 4 + rasterTileX_) * 8;
+    const int y = (rasterBlockY_ * 4 + rasterTileY_) * 8;
+    auto destination = static_cast<memory::Address>(
+        kTileBufferAddress + static_cast<memory::Address>(rasterNextTile_) * 32u);
+
+    for (int row = 0; row < 8; ++row) {
+        const auto pixel0 = canvasPixel(x, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto pixel1 = canvasPixel(x + 1, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto pixel2 = canvasPixel(x + 2, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto pixel3 = canvasPixel(x + 3, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto pixel4 = canvasPixel(x + 4, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto pixel5 = canvasPixel(x + 5, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto pixel6 = canvasPixel(x + 6, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto pixel7 = canvasPixel(x + 7, y + row, sourceCoordinate_,
+                                       rasterThetaPhase_, rasterPhiPhase_);
+        const auto left = static_cast<std::uint16_t>(
+            (pixel0 << 12) | (pixel1 << 8) | (pixel2 << 4) | pixel3);
+        const auto right = static_cast<std::uint16_t>(
+            (pixel4 << 12) | (pixel5 << 8) | (pixel6 << 4) | pixel7);
+        memory_.write16(destination, left);
+        memory_.write16(destination + 2, right);
+        destination += 4;
+    }
+    ++rasterNextTile_;
+
+    const int remainingRows = rasterTileDimension_ - rasterBlockY_ * 4;
+    const int blockHeight = remainingRows < 4 ? remainingRows : 4;
+    if (++rasterTileY_ < blockHeight) {
+        return;
+    }
+    rasterTileY_ = 0;
+
+    const int remainingColumns = rasterTileDimension_ - rasterBlockX_ * 4;
+    const int blockWidth = remainingColumns < 4 ? remainingColumns : 4;
+    if (++rasterTileX_ < blockWidth) {
+        return;
+    }
+    rasterTileX_ = 0;
+
+    const int blockCount = (rasterTileDimension_ + 3) >> 2;
+    if (++rasterBlockX_ < blockCount) {
+        return;
+    }
+    rasterBlockX_ = 0;
+    ++rasterBlockY_;
+}
+
+void BoingBallDemo::rasterizeBallUntilBudget() {
+    while (rasterNextTile_ < rasterTileCount_) {
+        rasterizeNextBallTile();
+        if (videoBudgetExpired()) {
+            return;
+        }
+    }
+    surfaceReadyForDma_ = true;
+}
+
+bool BoingBallDemo::videoBudgetExpired() const {
+    const auto verticalCounter = static_cast<std::uint8_t>(memory_.read16(kHvCounter) >> 8);
+    return verticalCounter >= kRasterDeadlineLine && verticalCounter < kVBlankFirstLine;
 }
 
 void BoingBallDemo::uploadShadowTiles() {
     vdp::setVramWrite(memory_, static_cast<std::uint16_t>(kShadowFirstTile * 32));
-    for (int block = 0; block < 3; ++block) {
+    const int margin = (kMaximumBallSize - displayedBallSize_) >> 1;
+    for (int block = 0; block < 4; ++block) {
         for (int tile = 0; tile < 4; ++tile) {
             for (int y = 0; y < 8; ++y) {
                 std::uint16_t words[2]{0, 0};
-                const int inset = y == 0 || y == 7 ? 24 : (y == 1 || y == 6 ? 12 : (y == 2 || y == 5 ? 6 : 2));
+                const int ellipseInset = y == 0 || y == 7 ? displayedBallSize_ >> 2
+                    : (y == 1 || y == 6 ? displayedBallSize_ >> 3
+                        : (y == 2 || y == 5 ? displayedBallSize_ >> 4 : 2));
+                const int inset = margin + ellipseInset;
                 for (int localX = 0; localX < 8; ++localX) {
                     const int x = block * 32 + tile * 8 + localX;
-                    if (x < inset || x >= kDisplayedBallSize - inset) {
+                    if (x < inset || x >= kMaximumBallSize - inset) {
                         continue;
                     }
                     const auto color = static_cast<std::uint16_t>(((x + y) & 1) != 0 ? 1 : 2);
@@ -352,9 +545,31 @@ void BoingBallDemo::uploadShadowTiles() {
             }
         }
     }
+    shadowNeedsUpload_ = false;
 }
 
-void BoingBallDemo::uploadFloorGrid() {
+void BoingBallDemo::uploadBackgroundTiles() {
+    memory::Address wallDestination = kTileBufferAddress;
+    for (int tileRow = 0; tileRow < 3; ++tileRow) {
+        for (int tileColumn = 0; tileColumn < 3; ++tileColumn) {
+            for (int row = 0; row < 8; ++row) {
+                const int x = tileColumn * 8;
+                const int y = tileRow * 8 + row;
+                const auto left = static_cast<std::uint16_t>(
+                    (wallGridPixel(x, y) << 12) | (wallGridPixel(x + 1, y) << 8) |
+                    (wallGridPixel(x + 2, y) << 4) | wallGridPixel(x + 3, y));
+                const auto right = static_cast<std::uint16_t>(
+                    (wallGridPixel(x + 4, y) << 12) | (wallGridPixel(x + 5, y) << 8) |
+                    (wallGridPixel(x + 6, y) << 4) | wallGridPixel(x + 7, y));
+                memory_.write16(wallDestination, left);
+                memory_.write16(wallDestination + 2, right);
+                wallDestination += 4;
+            }
+        }
+    }
+    vdp::dmaToVram(memory_, kTileBufferAddress,
+                   static_cast<std::uint16_t>(kWallFirstTile * 32), kWallTileCount * 16);
+
     std::uint16_t bufferedTiles = 0;
     std::uint16_t firstBufferedTile = kFloorFirstTile;
 
@@ -398,6 +613,27 @@ void BoingBallDemo::uploadFloorGrid() {
         for (int column = 0; column < 40; ++column) {
             const auto tile = static_cast<std::uint16_t>(kFloorFirstTile + row * 40 + column);
             memory_.write16(vdp::kDataPort, vdp::tileDescriptor(tile, 3));
+        }
+    }
+}
+
+void BoingBallDemo::mapWallGrid() {
+    int tileRow = 0;
+    for (int row = 0; row < kFloorFirstRow; ++row) {
+        const auto address = static_cast<std::uint16_t>(
+            vdp::kPlaneB + (row * vdp::kPlaneWidth) * 2);
+        vdp::setVramWrite(memory_, address);
+        int tileColumn = 0;
+        for (int column = 0; column < 40; ++column) {
+            const auto tile = static_cast<std::uint16_t>(
+                kWallFirstTile + tileRow * 3 + tileColumn);
+            memory_.write16(vdp::kDataPort, vdp::tileDescriptor(tile, 3));
+            if (++tileColumn == 3) {
+                tileColumn = 0;
+            }
+        }
+        if (++tileRow == 3) {
+            tileRow = 0;
         }
     }
 }

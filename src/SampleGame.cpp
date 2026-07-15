@@ -119,7 +119,6 @@ void SampleGame::initializeGraphics() {
     vdp::loadTilesFromRom(memory_, kRomTileData + kGemRomTile * 32, kGemTile, 1);
     vdp::loadTilesFromRom(memory_, kRomTileData + kFloorRomTile * 32, kFloorTile, 1);
 
-    vdp::fillPlane(memory_, vdp::kPlaneB, vdp::tileDescriptor(kFloorTile, 3));
     activateGameScreen();
     vdp::finishInitialization(memory_);
 }
@@ -134,6 +133,8 @@ void SampleGame::activateGameScreen() {
     vdp::loadPalette(memory_, 3, kFloorPalette);
 
     vdp::fillPlaneArea(memory_, vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    vdp::fillPlaneArea(memory_, vdp::kPlaneB, 0, 0, 40, 28,
+                       vdp::tileDescriptor(kFloorTile, 3));
     vdp::writeText(memory_, vdp::kPlaneA, 2, 1, "MEGADRIVE ENVIRONMENT SAMPLE", kFontTile);
     vdp::writeText(memory_, vdp::kPlaneA, 2, 26, "D-PAD MOVE   A RESET   START DEMO", kFontTile);
 }
@@ -171,7 +172,7 @@ void SampleGame::update() {
             activateGameScreen();
             return;
         }
-        const auto events = boingBallDemo_.update();
+        const auto events = boingBallDemo_.update(controls.up, controls.down);
         if (events.hitFloor) {
             soundEffects_.playBallFloorBounce();
         } else if (events.hitWall) {

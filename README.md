@@ -18,12 +18,14 @@ Start there to return.
 - overriding `vSync()` and `hSync(int)` in the PC environment application;
 - forwarding real-hardware IRQ6/IRQ4 to the same shared VBlank/HBlank methods;
 - creating a visible HBlank raster-wave effect on the Plane B floor;
-- rendering a rotating, bouncing 96x96 white/red/blue checker ball in software;
-- expanding a 48x48 logical raster 2x2 and transferring its 144 dynamic tiles
-  from fixed Work RAM to VRAM with VDP DMA;
+- rendering a rotating, bouncing white/red/blue checker ball in software;
+- rasterizing every final ball pixel from a packed 128x128 sphere lookup;
+- generating only `ceil(size/8)^2` display tiles for continuous 64–128 px zoom;
+- double-buffering completed surfaces from fixed Work RAM to VRAM with VDP DMA;
 - composing the ball and its dithered ground shadow from linked hardware sprites;
-- measuring the 30/25 software-rasterized frames over a 60/50-VBlank window;
-- drawing an upright wall grid and a perspective floor grid on separate planes;
+- measuring completed software surfaces over a 60/50-VBlank window;
+- generating the upright wall and perspective floor graphics entirely in
+  software, then drawing them on separate planes;
 - rotating the checker texture around both theta and phi axes;
 - playing distinct PSG impacts for the floor and side walls;
 - configuring the VDP for H40 / Mode 5 output;
@@ -47,25 +49,35 @@ inside MegaDriveEnvironment and on the physical console.
 ## Software 3D demo
 
 After accepting the opening notice, press Start from gameplay to open the
-Boing Ball screen. The ball is 96 pixels wide—30% of the H40 display—and uses
-no pre-rendered animation frames. A 48x48 fixed-point sphere lookup supplies
-pre-shaded white, red and blue colours, longitude and latitude; the shared C++
-renderer rotates its checker texture around theta and phi and expands each logical pixel to a 2x2
-block, and packs the result as 144 VDP tiles. Nine 4x4 sprites display those
-tiles as one large ball, while three more sprites form the 96x8 dithered
-shadow. Plane B draws the upright grid and the Window plane draws the
-perspective floor below the horizon. Floor and wall impacts trigger distinct
-SN76489 PSG effects.
+Boing Ball screen. The ball starts 96 pixels wide—30% of the H40 display. Hold
+Up to approach it continuously up to 128 pixels, or Down to move away down to
+64 pixels. It uses no pre-rendered animation frames. A packed 128x128 sphere
+lookup in ROM supplies shading, longitude and latitude for each final pixel;
+the shared C++ renderer evaluates the white/red/blue texture at the requested
+display resolution without first producing and enlarging a smaller image.
+
+Only the visible tile rectangle is built: 64 pixels uses 64 tiles, the default
+96 pixels uses 144, and 128 pixels uses 256. A variable number of linked sprites
+displays that rectangle while four more form its scaled dithered shadow. The
+renderer also builds the wall's nine repeating patterns and all 320
+perspective-floor patterns in software; it does not reuse the sample game's
+authored floor tile. Plane B draws the upright grid and the Window plane draws
+the perspective floor below the horizon. Floor and wall impacts trigger
+distinct SN76489 PSG effects.
 
 To stay within the real 68000/VDP budget, the renderer writes one bounded
-4608-byte tile buffer at `$FF1000-$FF21FF` and launches one 68000-to-VRAM DMA.
-The sprite position and bounce advance on every VBlank (60 Hz NTSC / 50 Hz
-PAL); the more expensive rotating surface is rebuilt every other VBlank and
-persists in VRAM between updates. The FPS display counts those completed
-software rasters over one 60/50-VBlank interval, so the normal result is 30
-FPS on NTSC and 25 FPS on PAL. It does not use either Yamaha timer. PC and Mega
-Drive execute this same code and perform every RAM, controller and VDP access
-through `memory::Memory`.
+8192-byte tile buffer at `$FF1000-$FF2FFF`. DMA and bank swaps happen at the
+start of VBlank; CPU-only raster work then continues while there is display
+time available. After every tile, the same renderer reads the VDP
+beam counter through `memory::Memory` and yields before the next VBlank. A fast
+PC can therefore complete substantially more surfaces than the 68000 without a
+platform-specific rendering path.
+
+The sprite position, bounce and continuous zoom still advance on every VBlank
+(60 Hz NTSC / 50 Hz PAL). The FPS display counts only completed, swapped
+surfaces over that 60/50-VBlank interval. It uses neither Yamaha timer. PC and
+Mega Drive execute this same code and perform every RAM, controller and VDP
+access through `memory::Memory`.
 
 ## Requirements
 
@@ -272,7 +284,7 @@ region. The initial stack pointer is `$FFFFFC` and the stack grows downwards;
 there is no guard page to stop it from overwriting another Work RAM region.
 The real-hardware bootstrap reserves `$FF0000-$FF0003` for the active
 `SampleGame` pointer and `$FF0004-$FF0005` for the HBlank scanline shim. The
-software 3D demo reserves `$FF1000-$FF21FF` as its dynamic tile/DMA buffer;
+software 3D demo reserves `$FF1000-$FF2FFF` as its dynamic tile/DMA buffer;
 future Work RAM layouts must preserve or deliberately relocate these regions.
 
 The correct design is therefore not necessarily "put everything on the stack"

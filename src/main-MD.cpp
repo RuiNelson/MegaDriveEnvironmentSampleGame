@@ -21,7 +21,7 @@ extern "C" void __cxa_pure_virtual() {
 namespace {
 
 // Work RAM holds the IRQ bridge state. BoingBallDemo separately reserves
-// $FF1000-$FF21FF as its DMA tile buffer. The game object itself remains on the
+// $FF1000-$FF2FFF as its DMA tile buffer. The game object itself remains on the
 // supervisor stack for the lifetime of game_main.
 constexpr std::uintptr_t kActiveGameAddress = 0x00FF0000;
 constexpr std::uintptr_t kHLineAddress = 0x00FF0004;
