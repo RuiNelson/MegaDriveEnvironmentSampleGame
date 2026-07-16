@@ -5,7 +5,7 @@
             "name": "Sample Game (Debugger)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/vscode-debug/mega_drive_environment_sample_game",
+            "program": "${workspaceFolder}/build/dev/mega_drive_environment_sample_game",
             "args": [],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build Sample Game (Debug)",
@@ -19,7 +19,7 @@
             "name": "Sample Game (Debugger + diagnostics)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/vscode-debug/mega_drive_environment_sample_game",
+            "program": "${workspaceFolder}/build/dev/mega_drive_environment_sample_game",
             "args": [
                 "--debug"
             ],

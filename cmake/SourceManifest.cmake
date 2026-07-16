@@ -1,0 +1,22 @@
+function(sample_read_shared_sources output_variable)
+    set(manifest "${CMAKE_CURRENT_SOURCE_DIR}/config/shared_sources.json")
+    file(READ "${manifest}" manifest_json)
+    string(JSON source_count ERROR_VARIABLE manifest_error LENGTH "${manifest_json}")
+
+    if(manifest_error OR source_count EQUAL 0)
+        message(FATAL_ERROR "Invalid or empty shared source manifest: ${manifest}")
+    endif()
+
+    math(EXPR last_source_index "${source_count} - 1")
+    set(shared_sources)
+    foreach(source_index RANGE 0 ${last_source_index})
+        string(JSON relative_source GET "${manifest_json}" ${source_index})
+        set(source "${CMAKE_CURRENT_SOURCE_DIR}/${relative_source}")
+        if(NOT EXISTS "${source}")
+            message(FATAL_ERROR "Shared source does not exist: ${relative_source}")
+        endif()
+        list(APPEND shared_sources "${source}")
+    endforeach()
+
+    set(${output_variable} "${shared_sources}" PARENT_SCOPE)
+endfunction()

@@ -4,20 +4,9 @@
  */
 
 #include "MegaDriveEnvironmentSampleGame/GameSession.hpp"
+#include "MegaDriveEnvironmentSampleGame/GameConfig.hpp"
 
 namespace sample::game {
-namespace {
-
-constexpr int kScreenWidth = 320;
-constexpr int kScreenHeight = 224;
-constexpr int kHudHeight = 32;
-constexpr int kPlayerSize = 16;
-constexpr int kGemSize = 8;
-constexpr int kEnemySize = 16;
-constexpr std::uint32_t kEnemySpeedScale = 24;
-constexpr std::uint32_t kEnemyInitialSpeed = 8;
-
-} // namespace
 
 int Entity::x() const {
     return x_;
@@ -51,78 +40,85 @@ void Entity::move(int deltaX, int deltaY) {
     y_ += deltaY;
 }
 
-Player::Player() : Entity(40, 104, kPlayerSize, kPlayerSize) {
+Player::Player()
+    : Entity(config::kPlayerStartX, config::kPlayerStartY, config::kPlayerSize,
+             config::kPlayerSize) {
 }
 
 void Player::reset() {
-    setPosition(40, 104);
+    setPosition(config::kPlayerStartX, config::kPlayerStartY);
 }
 
 void Player::update(const controllers::ControllerState &controls) {
-    constexpr int speed = 2;
-    move((controls.right ? speed : 0) - (controls.left ? speed : 0),
-         (controls.down ? speed : 0) - (controls.up ? speed : 0));
+    move((controls.right ? config::kPlayerSpeed : 0) -
+             (controls.left ? config::kPlayerSpeed : 0),
+         (controls.down ? config::kPlayerSpeed : 0) -
+             (controls.up ? config::kPlayerSpeed : 0));
 
     // The HUD occupies the top four tile rows and is not part of the playfield.
     int clampedX = x();
     int clampedY = y();
     if (clampedX < 0) {
         clampedX = 0;
-    } else if (clampedX > kScreenWidth - width()) {
-        clampedX = kScreenWidth - width();
+    } else if (clampedX > config::kScreenWidth - width()) {
+        clampedX = config::kScreenWidth - width();
     }
-    if (clampedY < kHudHeight) {
-        clampedY = kHudHeight;
-    } else if (clampedY > kScreenHeight - height()) {
-        clampedY = kScreenHeight - height();
+    if (clampedY < config::kHudHeight) {
+        clampedY = config::kHudHeight;
+    } else if (clampedY > config::kScreenHeight - height()) {
+        clampedY = config::kScreenHeight - height();
     }
     setPosition(clampedX, clampedY);
 }
 
-Collectible::Collectible() : Entity(240, 104, kGemSize, kGemSize) {
+Collectible::Collectible()
+    : Entity(config::kGemStartX, config::kGemStartY, config::kGemSize, config::kGemSize) {
 }
 
 void Collectible::reset() {
-    stepX_ = 224;
-    stepY_ = 64;
-    setPosition(240, 104);
+    stepX_ = config::kGemSequenceStartX;
+    stepY_ = config::kGemSequenceStartY;
+    setPosition(config::kGemStartX, config::kGemStartY);
 }
 
 void Collectible::moveToNextPosition() {
     // The increments are coprime with their ranges, giving long deterministic
     // cycles. Incremental wrapping avoids division helpers in the ROM build.
-    stepX_ = static_cast<std::uint16_t>(stepX_ + 73);
-    if (stepX_ >= 280) {
-        stepX_ = static_cast<std::uint16_t>(stepX_ - 280);
+    stepX_ = static_cast<std::uint16_t>(stepX_ + config::kGemSequenceStepX);
+    if (stepX_ >= config::kGemSequenceWidth) {
+        stepX_ = static_cast<std::uint16_t>(stepX_ - config::kGemSequenceWidth);
     }
-    stepY_ = static_cast<std::uint16_t>(stepY_ + 47);
-    if (stepY_ >= 168) {
-        stepY_ = static_cast<std::uint16_t>(stepY_ - 168);
+    stepY_ = static_cast<std::uint16_t>(stepY_ + config::kGemSequenceStepY);
+    if (stepY_ >= config::kGemSequenceHeight) {
+        stepY_ = static_cast<std::uint16_t>(stepY_ - config::kGemSequenceHeight);
     }
-    setPosition(16 + stepX_, kHudHeight + 8 + stepY_);
+    setPosition(config::kGemMarginX + stepX_,
+                config::kHudHeight + config::kGemMarginY + stepY_);
 }
 
-Enemy::Enemy() : Entity(288, 184, kEnemySize, kEnemySize) {
+Enemy::Enemy()
+    : Entity(config::kEnemyStartX, config::kEnemyStartY, config::kEnemySize,
+             config::kEnemySize) {
 }
 
 void Enemy::reset() {
     chaseProgress_ = 0;
-    speed_ = kEnemyInitialSpeed;
-    setPosition(288, 184);
+    speed_ = config::kEnemyInitialSpeed;
+    setPosition(config::kEnemyStartX, config::kEnemyStartY);
 }
 
 void Enemy::increaseSpeed() {
     // One unit is 1/24 pixel per frame. Unlike changing an integer frame
     // interval, this makes every collected gem increase the movement rate.
-    ++speed_;
+    speed_ += config::kEnemySpeedIncrease;
 }
 
 void Enemy::chase(const Player &player) {
     chaseProgress_ += speed_;
 
     int stepCount = 0;
-    while (chaseProgress_ >= kEnemySpeedScale) {
-        chaseProgress_ -= kEnemySpeedScale;
+    while (chaseProgress_ >= config::kEnemySpeedScale) {
+        chaseProgress_ -= config::kEnemySpeedScale;
         ++stepCount;
     }
     if (stepCount == 0) {
@@ -177,7 +173,7 @@ Events GameSession::update(const controllers::ControllerState &controls) {
     player_.update(controls);
     if (player_.overlaps(gem_)) {
         ++score_;
-        if (score_ >= 1000) {
+        if (score_ >= config::kScoreLimit) {
             score_ = 0;
         }
         gem_.moveToNextPosition();

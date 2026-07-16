@@ -1,16 +1,21 @@
 cmake_minimum_required(VERSION 3.24)
-project(MegaDriveEnvironmentSampleGame LANGUAGES CXX)
+
+project(
+    MegaDriveEnvironmentSampleGame
+    VERSION 0.1.0
+    DESCRIPTION "Dual-target sample game for MegaDriveEnvironment"
+    LANGUAGES CXX
+)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # MegaDriveEnvironment is a shared library by default. Do not re-link the sample
 # executable merely because that dylib was rebuilt (implementation-only edits).
 set(CMAKE_LINK_DEPENDS_NO_SHARED ON)
+
+option(SAMPLE_ENABLE_WARNINGS "Enable useful compiler warnings for sample targets" ON)
 
 set(MEGADRIVE_ENVIRONMENT_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../MegaDriveEnvironment"
@@ -29,6 +34,11 @@ add_subdirectory(
     "${CMAKE_BINARY_DIR}/MegaDriveEnvironment"
 )
 
+include(cmake/ProjectOptions.cmake)
+include(cmake/SourceManifest.cmake)
+
+sample_read_shared_sources(SAMPLE_SHARED_SOURCES)
+
 set(SAMPLE_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 set(SAMPLE_ASSET_ROM "${CMAKE_BINARY_DIR}/sample_game_assets.bin")
 set(SAMPLE_ASSET_LAYOUT_HEADER "${SAMPLE_GENERATED_DIR}/AssetLayout.hpp")
@@ -39,129 +49,40 @@ set(SAMPLE_FONT_DATA
     "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
 )
 set(SAMPLE_Z80_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/sound/z80/boing_ball_sfx.s")
-set(SAMPLE_BOING_SAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/sound/amiga_assets/boing.samples")
 set(SAMPLE_BOING_PCM "${CMAKE_CURRENT_SOURCE_DIR}/sound/amiga_assets/boing_pcm.bin")
 
-option(SAMPLE_ASSET_ROM_PREBUILT "Asset ROM was generated before CMake build" OFF)
-if(SAMPLE_ASSET_ROM_PREBUILT)
-    if(NOT EXISTS "${SAMPLE_ASSET_ROM}")
-        message(FATAL_ERROR "Prebuilt asset ROM does not exist: ${SAMPLE_ASSET_ROM}")
-    endif()
-    if(NOT EXISTS "${SAMPLE_ASSET_LAYOUT_HEADER}")
-        message(FATAL_ERROR
-            "Prebuilt asset layout header does not exist: ${SAMPLE_ASSET_LAYOUT_HEADER}"
-        )
-    endif()
-    add_custom_target(sample_asset_rom ALL)
-else()
-    add_custom_command(
-        OUTPUT
-            "${SAMPLE_ASSET_ROM}"
-            "${SAMPLE_ASSET_LAYOUT_HEADER}"
-            "${SAMPLE_ASSET_LAYOUT_JSON}"
-            "${SAMPLE_ASSET_PACK_BIN}"
-        COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/convert_boing_pcm.py"
-                --input "${SAMPLE_BOING_SAMPLES}"
-                --output "${SAMPLE_BOING_PCM}"
-                --target-rate 8000
-        COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_assets.py"
-                --output "${SAMPLE_ASSET_ROM}"
-                --font-data "${SAMPLE_FONT_DATA}"
-                --z80-source "${SAMPLE_Z80_SOURCE}"
-                --boing-pcm "${SAMPLE_BOING_PCM}"
-                --work-dir "${SAMPLE_ASSETS_WORK_DIR}"
-                --layout-header "${SAMPLE_ASSET_LAYOUT_HEADER}"
-                --layout-json "${SAMPLE_ASSET_LAYOUT_JSON}"
-                --pack-binary "${SAMPLE_ASSET_PACK_BIN}"
-        DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_assets.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_pack.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/tiles.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/assemble_z80.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/boing_pcm.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/convert_boing_pcm.py"
-            "${SAMPLE_FONT_DATA}"
-            "${SAMPLE_Z80_SOURCE}"
-            "${SAMPLE_BOING_SAMPLES}"
-        COMMENT "Converting Boing PCM and building asset ROM"
-        VERBATIM
-    )
-    add_custom_target(sample_asset_rom ALL DEPENDS
-        "${SAMPLE_ASSET_ROM}"
-        "${SAMPLE_ASSET_LAYOUT_HEADER}"
-    )
-endif()
+include(cmake/Assets.cmake)
 
-add_library(sample_game STATIC
-    src/BoingBallDemo.cpp
-    src/BoingBallFmSfx.cpp
-    src/ControllerReader.cpp
-    src/GameSession.cpp
-    src/PsgSoundEffects.cpp
-    src/SampleGame.cpp
-    src/VdpUtils.cpp
-)
+add_library(sample_game STATIC ${SAMPLE_SHARED_SOURCES})
+add_library(SampleGame::Core ALIAS sample_game)
 target_include_directories(sample_game PUBLIC
     include
     "${SAMPLE_GENERATED_DIR}"
 )
 target_compile_definitions(sample_game PUBLIC PC=1)
+target_link_libraries(sample_game PUBLIC sample_project_options)
+sample_enable_warnings(sample_game)
 add_dependencies(sample_game sample_asset_rom)
 
-add_library(sample_memory_pc STATIC
-    src/Memory-PC.cpp
-)
+add_library(sample_memory_pc STATIC src/Memory-PC.cpp)
+add_library(SampleGame::MemoryPC ALIAS sample_memory_pc)
 target_include_directories(sample_memory_pc PUBLIC include)
 target_link_libraries(sample_memory_pc PUBLIC
     sample_game
     MegaDriveEnvironment::MegaDriveEnvironment
 )
+sample_enable_warnings(sample_memory_pc)
 
-add_executable(mega_drive_environment_sample_game
-    src/main-PC.cpp
-)
-
-target_include_directories(mega_drive_environment_sample_game PRIVATE include)
+add_executable(mega_drive_environment_sample_game src/main-PC.cpp)
+add_executable(SampleGame::PC ALIAS mega_drive_environment_sample_game)
 add_dependencies(mega_drive_environment_sample_game sample_asset_rom)
 target_compile_definitions(mega_drive_environment_sample_game PRIVATE
     SAMPLE_ASSET_ROM_PATH="${SAMPLE_ASSET_ROM}"
+    SAMPLE_GAME_VERSION="${PROJECT_VERSION}"
 )
-target_link_libraries(mega_drive_environment_sample_game PRIVATE
-    sample_memory_pc
-)
+target_link_libraries(mega_drive_environment_sample_game PRIVATE sample_memory_pc)
 
 include(CTest)
 if(BUILD_TESTING)
-    add_test(
-        NAME sample_asset_rom_encoding_test
-        COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_build_assets.py"
-                "${SAMPLE_FONT_DATA}"
-    )
-
-    add_executable(sample_memory_test tests/MemoryTest.cpp)
-    target_link_libraries(sample_memory_test PRIVATE sample_memory_pc)
-    add_test(NAME sample_memory_test COMMAND sample_memory_test)
-
-    add_executable(sample_controller_reader_test tests/ControllerReaderTest.cpp)
-    target_link_libraries(sample_controller_reader_test PRIVATE sample_game)
-    add_test(NAME sample_controller_reader_test COMMAND sample_controller_reader_test)
-
-    add_executable(sample_game_session_test tests/GameSessionTest.cpp)
-    target_link_libraries(sample_game_session_test PRIVATE sample_game)
-    add_test(NAME sample_game_session_test COMMAND sample_game_session_test)
-
-    add_executable(sample_boing_ball_demo_test tests/BoingBallDemoTest.cpp)
-    target_link_libraries(sample_boing_ball_demo_test PRIVATE sample_game)
-    add_test(NAME sample_boing_ball_demo_test COMMAND sample_boing_ball_demo_test)
-
-    add_executable(sample_psg_sound_effects_test tests/PsgSoundEffectsTest.cpp)
-    target_link_libraries(sample_psg_sound_effects_test PRIVATE sample_game)
-    add_test(NAME sample_psg_sound_effects_test COMMAND sample_psg_sound_effects_test)
-
-    add_executable(sample_boing_ball_fm_sfx_test tests/BoingBallFmSfxTest.cpp)
-    target_link_libraries(sample_boing_ball_fm_sfx_test PRIVATE sample_game)
-    add_test(NAME sample_boing_ball_fm_sfx_test COMMAND sample_boing_ball_fm_sfx_test)
+    include(cmake/Tests.cmake)
 endif()

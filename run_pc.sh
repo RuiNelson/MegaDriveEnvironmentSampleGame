@@ -2,7 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${BUILD_DIR:-${ROOT_DIR}/build}"
+source "${ROOT_DIR}/scripts/common.sh"
+
+BUILD_DIR="$(sample_resolve_path "${BUILD_DIR:-build}")"
 GAME="${BUILD_DIR}/mega_drive_environment_sample_game"
 
 if [[ ! -x "${GAME}" ]]; then

@@ -1,0 +1,9 @@
+[
+  "src/BoingBallDemo.cpp",
+  "src/BoingBallFmSfx.cpp",
+  "src/ControllerReader.cpp",
+  "src/GameSession.cpp",
+  "src/PsgSoundEffects.cpp",
+  "src/SampleGame.cpp",
+  "src/VdpUtils.cpp"
+]

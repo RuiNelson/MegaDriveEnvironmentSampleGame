@@ -5,10 +5,11 @@
  * Platform-independent rules and object model for the sample game.
  *
  * Coordinates are integer pixels measured from the visible screen's top-left.
- * The first 32 vertical pixels are reserved for the HUD.
+ * Default dimensions and speeds live in GameConfig.hpp.
  */
 
 #include "MegaDriveEnvironmentSampleGame/ControllerReader.hpp"
+#include "MegaDriveEnvironmentSampleGame/GameConfig.hpp"
 
 namespace sample::game {
 
@@ -70,8 +71,8 @@ class Collectible final : public Entity {
 
   private:
     /** Sequence accumulators relative to the playable area's origin. */
-    std::uint16_t stepX_ = 224;
-    std::uint16_t stepY_ = 64;
+    std::uint16_t stepX_ = config::kGemSequenceStartX;
+    std::uint16_t stepY_ = config::kGemSequenceStartY;
 };
 
 /** Autonomous 16x16 entity that follows the player and accelerates with gems. */
@@ -90,7 +91,7 @@ class Enemy final : public Entity {
   private:
     /** Fixed-point progress and rate, measured in 1/24-pixel units. */
     std::uint32_t chaseProgress_ = 0;
-    std::uint32_t speed_ = 8;
+    std::uint32_t speed_ = config::kEnemyInitialSpeed;
 };
 
 /** One-frame notifications emitted by GameSession::update(). */
@@ -126,7 +127,7 @@ class GameSession final {
     [[nodiscard]] const Player &player() const;
     [[nodiscard]] const Collectible &gem() const;
     [[nodiscard]] const Enemy &enemy() const;
-    /** Current three-digit score; it wraps from 999 back to zero. */
+    /** Current score; it wraps at the configured score limit. */
     [[nodiscard]] std::uint16_t score() const;
     /** Whether the world is advancing or waiting for a restart. */
     [[nodiscard]] Phase phase() const;

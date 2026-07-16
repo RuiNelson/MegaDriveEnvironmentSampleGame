@@ -61,6 +61,8 @@ cmake -S . -B build \
 - Keep public headers flat under `include/MegaDriveEnvironmentSampleGame/` and
   implementations flat under `src/`. Shared files have plain names; source
   files that only build for one target use the `-PC` or `-MD` suffix.
+- Keep `config/shared_sources.json` as the canonical list of shared `.cpp`
+  files. Both CMake and the M68k ROM builder read it.
 - Build shared C++ with exactly one target definition: `PC` for
   MegaDriveEnvironment or `MEGADRIVE` for real hardware.
 - Keep `Memory.hpp` as the single memory API and target declarations. Its two
@@ -75,6 +77,9 @@ cmake -S . -B build \
   `AssetLayout.hpp` plus `asset_layout.json`. Sound conversion lives under
   `sound/tools/`. `tools/build_asset_rom.py` remains a thin compatibility
   wrapper. The real-hardware builder embeds the packed tail in a bootable ROM.
+- Normal builds consume the checked-in `sound/amiga_assets/boing_pcm.bin` and
+  must only write generated files below the build directory. PCM regeneration
+  is an explicit maintenance action, not part of every build.
 - Install `z80asm` (https://www.nongnu.org/z80asm/, e.g. `brew install z80asm`)
   for any build that regenerates assets.
 - Keep the hand-written vector table and Sega header in `megadrive/header.s`.

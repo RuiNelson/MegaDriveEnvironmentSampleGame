@@ -20,6 +20,10 @@
 #define SAMPLE_ASSET_ROM_PATH "sample_game_assets.bin"
 #endif
 
+#ifndef SAMPLE_GAME_VERSION
+#define SAMPLE_GAME_VERSION "development"
+#endif
+
 namespace {
 
 /** Host bootstrap; all actual game code remains in sample::SampleGame. */
@@ -104,7 +108,7 @@ int main(int argc, char **argv) {
                 return 2;
             }
         } else if (argument == "--version" || argument == "-V") {
-            std::printf("MegaDriveEnvironmentSampleGame 0.1.0\n");
+            std::printf("MegaDriveEnvironmentSampleGame %s\n", SAMPLE_GAME_VERSION);
             return 0;
         } else if (argument == "--help" || argument == "-h") {
             std::printf("Usage: mega_drive_environment_sample_game [OPTIONS]\n\n"

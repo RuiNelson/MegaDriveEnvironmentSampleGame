@@ -1,4 +1,5 @@
 /build/
+/build-*/
 /.cache/
 compile_commands.json
 controls.yaml
@@ -6,5 +7,5 @@ controls.yaml
 *.pyc
 __pycache__/
 .DS_Store
-
+.venv/
 

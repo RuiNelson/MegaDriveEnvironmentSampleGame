@@ -1,7 +1,6 @@
 {
-    "cmake.sourceDirectory": "${workspaceFolder}",
-    "cmake.buildDirectory": "${workspaceFolder}/build/vscode-debug",
-    "cmake.buildType": "Debug",
+    "cmake.useCMakePresets": "always",
+    "cmake.configurePreset": "dev",
     "cmake.configureOnOpen": false,
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/vscode-debug/compile_commands.json"
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/dev/compile_commands.json"
 }

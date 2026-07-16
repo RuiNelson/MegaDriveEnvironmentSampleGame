@@ -5,19 +5,12 @@
             "label": "Build Sample Game (Debug)",
             "type": "shell",
             "command": "${workspaceFolder}/build_pc.sh",
-            "args": [
-                "-DCMAKE_C_COMPILER=/usr/bin/clang",
-                "-DCMAKE_CXX_COMPILER=/usr/bin/clang++",
-                "-DCMAKE_AR=/usr/bin/ar",
-                "-DCMAKE_RANLIB=/usr/bin/ranlib"
-            ],
+            "args": [],
             "options": {
                 "cwd": "${workspaceFolder}",
                 "env": {
-                    "BUILD_DIR": "${workspaceFolder}/build/vscode-debug",
-                    "BUILD_TYPE": "Debug",
-                    "CC": "/usr/bin/clang",
-                    "CXX": "/usr/bin/clang++"
+                    "BUILD_DIR": "${workspaceFolder}/build/dev",
+                    "BUILD_TYPE": "Debug"
                 }
             },
             "problemMatcher": [

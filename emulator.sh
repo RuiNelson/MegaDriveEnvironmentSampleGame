@@ -1,4 +1,5 @@
-#!/bin/zsh
+#!/usr/bin/env bash
+set -euo pipefail
 
-./build_megadrive.sh
-./run_emulator.sh
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "${ROOT_DIR}/run_emulator.sh" "$@"

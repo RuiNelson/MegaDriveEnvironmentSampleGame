@@ -228,17 +228,20 @@ SECTIONS
 
 
 def generate_combined_cpp(output_path: Path, repository: Path) -> None:
+    manifest_path = repository / "config" / "shared_sources.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, list) or not manifest:
+        raise RuntimeError(f"invalid shared source manifest: {manifest_path}")
+
+    shared_sources = tuple(repository / source for source in manifest)
     sources = (
         repository / "src" / "Memory-MD.cpp",
-        repository / "src" / "BoingBallDemo.cpp",
-        repository / "src" / "BoingBallFmSfx.cpp",
-        repository / "src" / "ControllerReader.cpp",
-        repository / "src" / "GameSession.cpp",
-        repository / "src" / "PsgSoundEffects.cpp",
-        repository / "src" / "VdpUtils.cpp",
-        repository / "src" / "SampleGame.cpp",
+        *shared_sources,
         repository / "src" / "main-MD.cpp",
     )
+    missing_sources = [source for source in sources if not source.is_file()]
+    if missing_sources:
+        raise RuntimeError(f"missing source from manifest: {missing_sources[0]}")
     lines = ["// Generated compilation unit. Do not edit.\n"]
     for source in sources:
         lines.append(f'#include "{escape_assembly_path(source)}"\n')
@@ -276,21 +279,9 @@ def build(args: argparse.Namespace) -> None:
     objcopy = require_tool(f"{args.tool_prefix}objcopy")
     require_tool("z80asm", hint="on macOS run 'brew install z80asm'")
 
-    boing_samples = repository / "sound" / "amiga_assets" / "boing.samples"
     boing_pcm = repository / "sound" / "amiga_assets" / "boing_pcm.bin"
-    run(
-        [
-            sys.executable,
-            str(repository / "sound" / "tools" / "convert_boing_pcm.py"),
-            "--input",
-            str(boing_samples),
-            "--output",
-            str(boing_pcm),
-            "--target-rate",
-            "8000",
-        ],
-        cwd=repository,
-    )
+    if not boing_pcm.is_file():
+        raise RuntimeError(f"checked-in Boing PCM is missing: {boing_pcm}")
     run(
         [
             sys.executable,
