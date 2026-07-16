@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -44,14 +45,32 @@ def main() -> int:
     assert len(tile_data) == (FONT_TILE_COUNT + len(CUSTOM_TILE_ROWS)) * TILE_SIZE
 
     z80_source = REPOSITORY / "z80" / "boing_ball_sfx.s"
-    boing_pcm_path = REPOSITORY / "assets" / "boing_pcm.bin"
-    boing_pcm = load_boing_pcm(boing_pcm_path)
-    assert len(boing_pcm) > 1000
+    boing_samples = REPOSITORY / "assets" / "boing.samples"
+
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
+        boing_pcm_path = work / "boing_pcm.bin"
+        subprocess.run(
+            [
+                sys.executable,
+                str(REPOSITORY / "tools" / "convert_boing_pcm.py"),
+                "--input",
+                str(boing_samples),
+                "--output",
+                str(boing_pcm_path),
+                "--target-rate",
+                "8000",
+            ],
+            check=True,
+        )
+        boing_pcm = load_boing_pcm(boing_pcm_path)
+        assert len(boing_pcm) > 1000
+        # Resampled 14 kHz → 8 kHz must shrink the Amiga 24706-byte source.
+        assert len(boing_pcm) < 20000
+        assert abs(sum(boing_pcm) / len(boing_pcm) - 128) < 4
+
         z80_binary = assemble_z80(z80_source, work / "driver.bin")
         assert len(z80_binary) > 32
-        # Program starts at address 0 with DI (0xF3) in our driver.
         assert z80_binary[0] == 0xF3
 
         image, layout = pack_blobs(
@@ -74,7 +93,6 @@ def main() -> int:
         bank_base = pcm.offset & ~0x7FFF
         assert pcm.offset + pcm.size <= bank_base + 0x8000
 
-        # Full builder path used by CMake / build_pc.sh / build_megadrive.
         image2, layout2, z802 = build_asset_image(
             font_data_path=font_data,
             z80_source=z80_source,

@@ -1,27 +1,32 @@
 # Assets
 
+## `boing.samples`
+
+Original Amiga Boing impact sample (8-bit **signed** PCM, silence = 0), from
+http://amiga.filfre.net/misc/Chapter2/boing.samples  
+(Dale Luck / R.J. Mical demo; archive notes by Jimmy Maher).
+
 ## `boing_pcm.bin`
 
-Unsigned 8-bit PCM for the YM2612 DAC (silence = `0x80`), converted from the
-classic Amiga Boing impact sample.
+**Generated** — do not hand-edit. Produced by:
 
-| Source | Format |
-|--------|--------|
-| Amiga `boing.samples` | 8-bit **signed** (Paula, silence = 0) |
-| This file | 8-bit **unsigned** (YM2612 `$2A`, silence = `0x80`) |
-
-Conversion (required by the chip / ymfm: `internal = (data ^ 0x80) << 1`):
-
-```text
-ym_byte = (amiga_signed + 128) & 0xFF
+```bash
+python3 tools/convert_boing_pcm.py \
+  --input assets/boing.samples \
+  --output assets/boing_pcm.bin \
+  --source-rate 14037.43 \
+  --target-rate 8000
 ```
 
-Playback rates match the Amiga demo’s Paula periods (NTSC colour clock):
+Pipeline:
 
-| Hit | Amiga period | ≈ sample rate |
-|-----|--------------|---------------|
-| Floor | 255 | ~14.0 kHz |
-| Wall  | 160 | ~22.4 kHz |
+1. Load Amiga signed 8-bit  
+2. Remove DC  
+3. Trim near-silence  
+4. Low-pass (anti-alias)  
+5. Resample **14037 Hz → 8000 Hz** (Paula period-255 rate → Z80 DAC rate)  
+6. Peak-normalise to 90%  
+7. Quantise to YM2612 unsigned 8-bit (silence = `0x80`)
 
-Source archive: http://amiga.filfre.net/misc/Chapter2/ (Dale Luck / R.J. Mical
-Boing demo samples; reconstruction notes by Jimmy Maher).
+The Z80 driver streams this file at 8 kHz (floor) or ≈12.6 kHz (wall, Amiga
+period 160/255 pitch ratio).

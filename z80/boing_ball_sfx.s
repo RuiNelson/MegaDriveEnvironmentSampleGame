@@ -1,12 +1,12 @@
 ; Boing Ball demo sound driver for the Mega Drive Z80.
 ; Assembled with z80asm (https://www.nongnu.org/z80asm/).
 ;
-; Streams the original Amiga Boing impact sample (boing.samples) through the
-; YM2612 channel-6 DAC. Sample bytes are unsigned 8-bit with centre 0x80
-; (Amiga signed PCM + 128), matching what the YM2612 expects on register $2A.
+; Streams assets/boing_pcm.bin (from tools/convert_boing_pcm.py) through the
+; YM2612 channel-6 DAC. Input is unsigned 8-bit @ 8000 Hz, centre 0x80
+; (Amiga signed @ ~14037 Hz, low-passed and resampled).
 ;
 ; Z80 RAM (visible to the 68000 at $A00000):
-;   $1E00       command: 0 idle, 1 floor (Paula period 255), 2 wall (period 160)
+;   $1E00       command: 0 idle, 1 floor (8 kHz), 2 wall (faster ≈ period 160)
 ;   $1E01       status: 1 = ready
 ;   $1E02/03    PCM bank  = cart_addr >> 15          (little-endian word)
 ;   $1E04/05    PCM ptr   = $8000 | (cart_addr & $7FFF)
@@ -34,10 +34,12 @@ PCM_LEN:	equ	0x1E06
 CMD_FLOOR:	equ	1
 CMD_WALL:	equ	2
 
-; Inner DJNZ counts so total T-states per sample ≈ Amiga Paula period.
-; Loop body is ~56 T; floor wants ~255 T, wall ~160 T (NTSC colour clock).
-DELAY_FLOOR:	equ	16		; ~259 T → ~13.8 kHz (period 255 → 14.0 kHz)
-DELAY_WALL:	equ	8		; ~155 T → ~23.1 kHz (period 160 → 22.4 kHz)
+; PCM is fixed at 8000 Hz (see convert_boing_pcm.py). Loop body ≈ 56 T-states
+; plus DJNZ delay. Target: floor 8000 Hz (≈448 T), wall ≈ 8000*(255/160) Hz
+; (Amiga period ratio, higher pitch / shorter hit).
+;   DELAY=n → 56 + 13*(n-1)+8 T
+DELAY_FLOOR:	equ	30		; ≈441 T → ~8.1 kHz
+DELAY_WALL:	equ	18		; ≈285 T → ~12.6 kHz (≈8k * 255/160)
 
 start:
 	di

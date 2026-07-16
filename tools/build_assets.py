@@ -28,6 +28,8 @@ from asset_pack import (
 from boing_pcm import load_boing_pcm
 from tiles import build_tile_data
 
+# convert_boing_pcm is the only path that produces assets/boing_pcm.bin
+
 
 def repository_root() -> Path:
     return Path(__file__).resolve().parent.parent

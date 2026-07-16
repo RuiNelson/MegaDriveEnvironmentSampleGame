@@ -73,12 +73,12 @@ The renderer also builds the wall's nine repeating patterns and all 320
 perspective-floor patterns in software; it does not reuse the sample game's
 authored floor tile. Plane B draws the upright grid and the Window plane draws
 the perspective floor below the horizon. Floor and wall impacts play the
-**original Amiga Boing PCM** (`assets/boing_pcm.bin`, from the classic
-`boing.samples` garage-door hit) through the YM2612 DAC. A small Z80 program
-(`z80/boing_ball_sfx.s`) banks the cartridge window and streams the sample;
-floor uses the Amiga period-255 rate and wall the period-160 rate. The 68000
-only bus-requests the Z80, installs sample bank/pointer/length, and posts a
-one-byte command mailbox.
+**original Amiga Boing sample**, converted offline by
+`tools/convert_boing_pcm.py` (signed 8-bit @ Paula period-255 ≈14 kHz →
+low-pass + resample → unsigned 8-bit @ **8 kHz** for the YM2612 DAC). The Z80
+driver streams `assets/boing_pcm.bin` from the cartridge bank window; wall hits
+run the same PCM faster (Amiga period 160/255 ratio). The 68000 only
+bus-requests the Z80, installs bank/pointer/length, and posts a mailbox byte.
 
 To stay within the real 68000/VDP budget, the renderer writes one bounded
 8192-byte tile buffer at `$FF1000-$FF2FFF`. DMA and bank swaps happen at the
