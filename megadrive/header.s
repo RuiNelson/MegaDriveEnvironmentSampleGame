@@ -72,7 +72,7 @@ header_backup_ram:
 header_modem:
     .space 12, 0x20
 header_notes:
-    .ascii "C++23 SAMPLE; TILES STORED AT END OF ROM" | Exactly 40 bytes
+    .ascii "                                        " | Exactly 40 bytes
 header_regions:
     .ascii "JUE"
     .space 16 - (. - header_regions), 0x20
