@@ -8,6 +8,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# MegaDriveEnvironment is a shared library by default. Do not re-link the sample
+# executable merely because that dylib was rebuilt (implementation-only edits).
+set(CMAKE_LINK_DEPENDS_NO_SHARED ON)
+
 set(MEGADRIVE_ENVIRONMENT_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../MegaDriveEnvironment"
     CACHE PATH "Path to the MegaDriveEnvironment repository"

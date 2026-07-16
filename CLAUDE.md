@@ -21,6 +21,9 @@ cmake --build build
 ./build/mega_drive_environment_sample_game
 ```
 
+Links shared `MegaDriveEnvironment` by default. Implementation-only environment
+edits rebuild the dylib without re-linking the sample (`CMAKE_LINK_DEPENDS_NO_SHARED`).
+
 Prefer the repository entry points for normal PC workflows:
 
 ```bash
