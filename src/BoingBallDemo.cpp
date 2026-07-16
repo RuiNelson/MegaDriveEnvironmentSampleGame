@@ -46,11 +46,12 @@ constexpr std::uint8_t kVBlankFirstLine = 224;
 constexpr int kGeometrySize = 128;
 constexpr int kGeometryCenter = 63;
 constexpr int kGeometryRadius = 63;
-constexpr std::uint16_t kSurfaceKind = 0x0100;
-constexpr std::uint16_t kRimKind = 0x0200;
+// Packed geometry bytes: 0 = transparent, 255 = rim, 1..192 = surface
+// index (1 + shade*64 + lat*8 + lon) into the per-surface colour table.
+constexpr std::uint8_t kRimGeometry = 255;
 
 struct PackedSurfaceTable {
-    std::uint16_t points[kGeometrySize * kGeometrySize]{};
+    std::uint8_t points[kGeometrySize * kGeometrySize]{};
 };
 
 consteval int geometrySquareRoot(int value) {
@@ -93,17 +94,17 @@ consteval PackedSurfaceTable buildSurfaceTable() {
             const int depth = geometrySquareRoot(
                 kGeometryRadius * kGeometryRadius - radiusSquared);
             if (depth <= 8) {
-                table.points[y * kGeometrySize + x] = kRimKind;
+                table.points[y * kGeometrySize + x] = kRimGeometry;
                 continue;
             }
 
             const int light = depth - sphereX / 2 - sphereY / 2;
-            const std::uint16_t shade = light >= 64 ? 2 : (light >= 28 ? 1 : 0);
+            const std::uint8_t shade = light >= 64 ? 2 : (light >= 28 ? 1 : 0);
             const auto longitude = geometryAngle(sphereX, depth);
             const auto latitude = geometryAngle(sphereY, depth);
-            table.points[y * kGeometrySize + x] = static_cast<std::uint16_t>(
-                kSurfaceKind | (shade << 6) |
-                ((latitude & 7u) << 3) | (longitude & 7u));
+            // Non-zero so shade/lat/lon zero does not collide with transparent.
+            table.points[y * kGeometrySize + x] = static_cast<std::uint8_t>(
+                1u + (shade << 6) + ((latitude & 7u) << 3) + (longitude & 7u));
         }
     }
     return table;
@@ -130,18 +131,53 @@ constexpr std::uint16_t kBackdropPalette[16]{
     0x0000, 0x0808, 0x0A0A, 0x0AAA, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-[[gnu::always_inline]] inline std::uint8_t surfacePixel(
-    std::uint16_t point, const std::uint8_t *surfaceColor) {
-    return surfaceColor[point];
+// Pack eight 4-bit palette indices into one native VDP tile row word.
+[[gnu::always_inline]] inline std::uint32_t packTileRow(
+    std::uint8_t c0, std::uint8_t c1, std::uint8_t c2, std::uint8_t c3,
+    std::uint8_t c4, std::uint8_t c5, std::uint8_t c6, std::uint8_t c7) {
+    return (static_cast<std::uint32_t>(c0) << 28) |
+           (static_cast<std::uint32_t>(c1) << 24) |
+           (static_cast<std::uint32_t>(c2) << 20) |
+           (static_cast<std::uint32_t>(c3) << 16) |
+           (static_cast<std::uint32_t>(c4) << 12) |
+           (static_cast<std::uint32_t>(c5) << 8) |
+           (static_cast<std::uint32_t>(c6) << 4) |
+           c7;
+}
+
+[[gnu::always_inline]] inline std::uint32_t packCompleteGeometryRow(
+    const std::uint8_t *geometryRow, std::uint8_t sx0, std::uint8_t sx1,
+    std::uint8_t sx2, std::uint8_t sx3, std::uint8_t sx4, std::uint8_t sx5,
+    std::uint8_t sx6, std::uint8_t sx7, const std::uint8_t *surfaceColor) {
+    return packTileRow(
+        surfaceColor[geometryRow[sx0]], surfaceColor[geometryRow[sx1]],
+        surfaceColor[geometryRow[sx2]], surfaceColor[geometryRow[sx3]],
+        surfaceColor[geometryRow[sx4]], surfaceColor[geometryRow[sx5]],
+        surfaceColor[geometryRow[sx6]], surfaceColor[geometryRow[sx7]]);
 }
 
 [[gnu::always_inline]] inline std::uint8_t edgeSurfacePixel(
-    const std::uint16_t *geometryRow, std::uint8_t sourceX,
+    const std::uint8_t *geometryRow, std::uint8_t sourceX,
     const std::uint8_t *surfaceColor) {
     if (sourceX == 0xFF) {
         return 0;
     }
-    return surfacePixel(geometryRow[sourceX], surfaceColor);
+    return surfaceColor[geometryRow[sourceX]];
+}
+
+[[gnu::always_inline]] inline std::uint32_t packEdgeGeometryRow(
+    const std::uint8_t *geometryRow, std::uint8_t sx0, std::uint8_t sx1,
+    std::uint8_t sx2, std::uint8_t sx3, std::uint8_t sx4, std::uint8_t sx5,
+    std::uint8_t sx6, std::uint8_t sx7, const std::uint8_t *surfaceColor) {
+    return packTileRow(
+        edgeSurfacePixel(geometryRow, sx0, surfaceColor),
+        edgeSurfacePixel(geometryRow, sx1, surfaceColor),
+        edgeSurfacePixel(geometryRow, sx2, surfaceColor),
+        edgeSurfacePixel(geometryRow, sx3, surfaceColor),
+        edgeSurfacePixel(geometryRow, sx4, surfaceColor),
+        edgeSurfacePixel(geometryRow, sx5, surfaceColor),
+        edgeSurfacePixel(geometryRow, sx6, surfaceColor),
+        edgeSurfacePixel(geometryRow, sx7, surfaceColor));
 }
 
 [[gnu::always_inline]] inline std::uint8_t wallGridPixel(int x, int y) {
@@ -414,11 +450,11 @@ void BoingBallDemo::beginSurfaceRaster() {
         }
     }
 
-    // Red/white selection only needs bit 2 of each rotated coordinate. Pack
-    // the necessary low three bits into the geometry and resolve kind, shade
-    // and both phases here, reducing every final pixel to one direct lookup.
-    surfaceColor_[0] = 0;
-    surfaceColor_[kRimKind] = 7;
+    // Red/white selection only needs bit 2 of each rotated coordinate. Resolve
+    // kind, shade and both phases once so every final pixel is one byte lookup.
+    auto *const surfaceColor = surfaceColor_;
+    surfaceColor[0] = 0;
+    surfaceColor[kRimGeometry] = 7;
     for (int latitude = 0; latitude < 8; ++latitude) {
         const auto shiftedLatitude = static_cast<std::uint8_t>(
             (latitude + rasterPhiPhase_) & 7u);
@@ -428,19 +464,20 @@ void BoingBallDemo::beginSurfaceRaster() {
             const auto baseColour = static_cast<std::uint8_t>(
                 ((shiftedLongitude ^ shiftedLatitude) & 4u) != 0 ? 4 : 1);
             const int key = (latitude << 3) | longitude;
-            surfaceColor_[kSurfaceKind + key] = baseColour;
-            surfaceColor_[kSurfaceKind + 64 + key] =
-                static_cast<std::uint8_t>(baseColour + 1u);
-            surfaceColor_[kSurfaceKind + 128 + key] =
-                static_cast<std::uint8_t>(baseColour + 2u);
+            surfaceColor[1 + key] = baseColour;
+            surfaceColor[1 + 64 + key] = static_cast<std::uint8_t>(baseColour + 1u);
+            surfaceColor[1 + 128 + key] = static_cast<std::uint8_t>(baseColour + 2u);
         }
     }
 
+    auto *const sourceCoordinate = sourceCoordinate_;
     for (int output = 0; output < kMaximumBallSize; ++output) {
-        sourceCoordinate_[output] = 0xFF;
+        sourceCoordinate[output] = 0xFF;
     }
     int source = 0;
     int error = 0;
+    // Map the 128-wide geometry onto rasterBallSize outputs without duplicates.
+    // Division-free on the 68000: peel the quotient with subtraction.
     int sourceStep = 1;
     int sourceRemainder = kMaximumBallSize - rasterBallSize_;
     while (sourceRemainder >= rasterBallSize_) {
@@ -448,7 +485,7 @@ void BoingBallDemo::beginSurfaceRaster() {
         ++sourceStep;
     }
     for (int output = 0; output < rasterBallSize_; ++output) {
-        sourceCoordinate_[output] = static_cast<std::uint8_t>(source);
+        sourceCoordinate[output] = static_cast<std::uint8_t>(source);
         source += sourceStep;
         error += sourceRemainder;
         if (error >= rasterBallSize_) {
@@ -480,51 +517,47 @@ void BoingBallDemo::rasterizeNextBallTile() {
 
     std::uint32_t tilePixels = 0;
     if (!knownTransparent) {
+        auto &memory = memory_;
+        const auto *const sourceCoordinate = sourceCoordinate_;
+        const auto *const surfaceColor = surfaceColor_;
+        // Source X is constant for every row of this tile — load it once.
+        const auto sx0 = sourceCoordinate[x];
+        const auto sx1 = sourceCoordinate[x + 1];
+        const auto sx2 = sourceCoordinate[x + 2];
+        const auto sx3 = sourceCoordinate[x + 3];
+        const auto sx4 = sourceCoordinate[x + 4];
+        const auto sx5 = sourceCoordinate[x + 5];
+        const auto sx6 = sourceCoordinate[x + 6];
+        const auto sx7 = sourceCoordinate[x + 7];
         const bool completeTileWidth = x + 7 < rasterBallSize_;
-        for (int row = 0; row < 8; ++row) {
-            const auto sourceY = sourceCoordinate_[y + row];
-            std::uint32_t packedPixels = 0;
-            if (sourceY != 0xFF) {
-                const auto *geometryRow = &kSurfaceTable.points[sourceY << 7];
-                if (completeTileWidth) {
-                    packedPixels =
-                    (static_cast<std::uint32_t>(surfacePixel(
-                         geometryRow[sourceCoordinate_[x]], surfaceColor_)) << 28) |
-                    (static_cast<std::uint32_t>(surfacePixel(
-                         geometryRow[sourceCoordinate_[x + 1]], surfaceColor_)) << 24) |
-                    (static_cast<std::uint32_t>(surfacePixel(
-                         geometryRow[sourceCoordinate_[x + 2]], surfaceColor_)) << 20) |
-                    (static_cast<std::uint32_t>(surfacePixel(
-                         geometryRow[sourceCoordinate_[x + 3]], surfaceColor_)) << 16) |
-                    (static_cast<std::uint32_t>(surfacePixel(
-                         geometryRow[sourceCoordinate_[x + 4]], surfaceColor_)) << 12) |
-                    (static_cast<std::uint32_t>(surfacePixel(
-                         geometryRow[sourceCoordinate_[x + 5]], surfaceColor_)) << 8) |
-                    (static_cast<std::uint32_t>(surfacePixel(
-                         geometryRow[sourceCoordinate_[x + 6]], surfaceColor_)) << 4) |
-                    surfacePixel(geometryRow[sourceCoordinate_[x + 7]], surfaceColor_);
-                } else {
-                    packedPixels =
-                    (static_cast<std::uint32_t>(edgeSurfacePixel(
-                         geometryRow, sourceCoordinate_[x], surfaceColor_)) << 28) |
-                    (static_cast<std::uint32_t>(edgeSurfacePixel(
-                         geometryRow, sourceCoordinate_[x + 1], surfaceColor_)) << 24) |
-                    (static_cast<std::uint32_t>(edgeSurfacePixel(
-                         geometryRow, sourceCoordinate_[x + 2], surfaceColor_)) << 20) |
-                    (static_cast<std::uint32_t>(edgeSurfacePixel(
-                         geometryRow, sourceCoordinate_[x + 3], surfaceColor_)) << 16) |
-                    (static_cast<std::uint32_t>(edgeSurfacePixel(
-                         geometryRow, sourceCoordinate_[x + 4], surfaceColor_)) << 12) |
-                    (static_cast<std::uint32_t>(edgeSurfacePixel(
-                         geometryRow, sourceCoordinate_[x + 5], surfaceColor_)) << 8) |
-                    (static_cast<std::uint32_t>(edgeSurfacePixel(
-                         geometryRow, sourceCoordinate_[x + 6], surfaceColor_)) << 4) |
-                    edgeSurfacePixel(geometryRow, sourceCoordinate_[x + 7], surfaceColor_);
+        const auto *const sourceYRow = sourceCoordinate + y;
+
+        if (completeTileWidth) {
+            for (int row = 0; row < 8; ++row) {
+                const auto sourceY = sourceYRow[row];
+                std::uint32_t packedPixels = 0;
+                if (sourceY != 0xFF) {
+                    packedPixels = packCompleteGeometryRow(
+                        &kSurfaceTable.points[static_cast<unsigned>(sourceY) << 7],
+                        sx0, sx1, sx2, sx3, sx4, sx5, sx6, sx7, surfaceColor);
                 }
+                tilePixels |= packedPixels;
+                memory.write32(destination, packedPixels);
+                destination += 4;
             }
-            tilePixels |= packedPixels;
-            memory_.write32(destination, packedPixels);
-            destination += 4;
+        } else {
+            for (int row = 0; row < 8; ++row) {
+                const auto sourceY = sourceYRow[row];
+                std::uint32_t packedPixels = 0;
+                if (sourceY != 0xFF) {
+                    packedPixels = packEdgeGeometryRow(
+                        &kSurfaceTable.points[static_cast<unsigned>(sourceY) << 7],
+                        sx0, sx1, sx2, sx3, sx4, sx5, sx6, sx7, surfaceColor);
+                }
+                tilePixels |= packedPixels;
+                memory.write32(destination, packedPixels);
+                destination += 4;
+            }
         }
         if (!reuseTransparentTiles_ && tilePixels != 0) {
             occupiedTiles_[occupancyByte] |= occupancyBit;
