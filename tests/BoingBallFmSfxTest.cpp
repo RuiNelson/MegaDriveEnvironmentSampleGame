@@ -118,31 +118,48 @@ int main() {
     assert(memory.z80Ram_[sample::audio::BoingBallFmSfx::kMailboxOffset] ==
            sample::audio::BoingBallFmSfx::kCommandIdle);
 
-    // Bootstrap must request the bus, hold reset while loading, then run.
+    // Accurate bus controller sequence: /BUSREQ, then /RESET released so the
+    // 68K can see Z80 RAM, a reset pulse after the copy, then bus release.
     bool sawBusRequest = false;
     bool sawBusRelease = false;
     bool sawResetHold = false;
     bool sawResetRun = false;
-    for (const auto &word : memory.controlWords) {
+    int firstBusRequest = -1;
+    int firstResetRun = -1;
+    int firstBusReleaseAfterLoad = -1;
+    for (int index = 0; index < static_cast<int>(memory.controlWords.size()); ++index) {
+        const auto &word = memory.controlWords[static_cast<std::size_t>(index)];
         if (word.address == sample::audio::BoingBallFmSfx::kZ80BusRequest &&
             word.value == 0x0100) {
             sawBusRequest = true;
+            if (firstBusRequest < 0) {
+                firstBusRequest = index;
+            }
         }
         if (word.address == sample::audio::BoingBallFmSfx::kZ80BusRequest &&
             word.value == 0x0000) {
             sawBusRelease = true;
+            if (firstBusReleaseAfterLoad < 0 && firstResetRun >= 0) {
+                firstBusReleaseAfterLoad = index;
+            }
         }
         if (word.address == sample::audio::BoingBallFmSfx::kZ80Reset && word.value == 0x0000) {
             sawResetHold = true;
         }
         if (word.address == sample::audio::BoingBallFmSfx::kZ80Reset && word.value == 0x0100) {
             sawResetRun = true;
+            if (firstResetRun < 0) {
+                firstResetRun = index;
+            }
         }
     }
     assert(sawBusRequest);
     assert(sawBusRelease);
     assert(sawResetHold);
     assert(sawResetRun);
+    assert(firstBusRequest >= 0);
+    assert(firstResetRun > firstBusRequest);
+    assert(firstBusReleaseAfterLoad > firstResetRun);
 
     memory.z80Ram_[sample::audio::BoingBallFmSfx::kMailboxOffset] = 0xEE;
     sfx.playFloorBounce();

@@ -19,14 +19,29 @@ constexpr std::uint16_t kResetRunWord = 0x0100;
 // Bounded spin so a stuck bus never hangs the game loop on either target.
 constexpr int kBusAckSpinLimit = 0x8000;
 
+// Give the Z80 time to run between short 68K bus grabs. Accurate emulators and
+// real hardware only advance the Z80 while /BUSREQ is clear.
+void delayZ80Window() {
+    for (int spin = 0; spin < 64; ++spin) {
+        // Volatile so -Os cannot delete the wait on either target.
+        volatile int sink = spin;
+        (void)sink;
+    }
+}
+
 } // namespace
 
 BoingBallFmSfx::BoingBallFmSfx(memory::Memory &memory) : memory_(memory) {
 }
 
 void BoingBallFmSfx::initialize() {
+    // Accurate Z80 bus controller (Genesis Plus GX / real hardware):
+    //   zstate bit0 = /RESET released, bit1 = /BUSREQ asserted
+    // 68K may read/write Z80 RAM only in zstate 3 (both bits set).
+    // From cold boot (zstate 0): request bus, then *release* reset so access
+    // is granted. Holding reset while requesting bus leaves writes discarded.
     requestBus();
-    holdReset();
+    releaseReset();
 
     const auto romBase = static_cast<memory::Address>(assets::kZ80BoingBallSfxOffset);
     const auto size = assets::kZ80BoingBallSfxSize;
@@ -38,13 +53,15 @@ void BoingBallFmSfx::initialize() {
     memory_.write8(kZ80RamBase + kMailboxOffset, kCommandIdle);
     memory_.write8(kZ80RamBase + kStatusOffset, 0);
 
-    // Match the environment self-test order: drop busreq, then leave reset so
-    // the Z80 begins execution at address 0 with a clean program image.
-    releaseBus();
+    // Pulse reset while still holding the bus so the Z80 restarts at $0000 with
+    // the freshly loaded image. Access stays granted across the pulse only if
+    // we end with /RESET released before dropping /BUSREQ.
+    holdReset();
     releaseReset();
+    releaseBus();
 
-    // Wait until the driver finishes YM init and raises its ready flag. Without
-    // this, early mailbox posts can race a still-booting Z80 on a slow host.
+    // Wait until the driver finishes YM init and raises its ready flag. Each
+    // probe briefly owns the bus, then yields so the Z80 can make progress.
     for (int spin = 0; spin < kBusAckSpinLimit; ++spin) {
         requestBus();
         const auto status = memory_.read8(kZ80RamBase + kStatusOffset);
@@ -52,6 +69,7 @@ void BoingBallFmSfx::initialize() {
         if (status == 1) {
             break;
         }
+        delayZ80Window();
     }
     ready_ = true;
 }
@@ -71,6 +89,7 @@ bool BoingBallFmSfx::ready() const {
 void BoingBallFmSfx::requestBus() {
     memory_.write16(kZ80BusRequest, kBusRequestWord);
     for (int spin = 0; spin < kBusAckSpinLimit; ++spin) {
+        // BUSACK: bit 8 clear means the 68K owns the Z80 bus.
         if ((memory_.read16(kZ80BusRequest) & kBusRequestWord) == 0) {
             return;
         }
@@ -94,7 +113,8 @@ void BoingBallFmSfx::writeCommand(std::uint8_t command) {
         return;
     }
 
-    // Brief bus request so the 68000 owns Z80 RAM while poking the mailbox.
+    // Own the Z80 bus for the mailbox poke; required on real hardware and on
+    // accurate emulators (writes are ignored while /BUSREQ is clear).
     requestBus();
     memory_.write8(kZ80RamBase + kMailboxOffset, command);
     releaseBus();
