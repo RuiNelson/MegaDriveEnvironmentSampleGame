@@ -13,7 +13,7 @@ namespace sample::audio {
  * Loads the Boing Ball Z80 driver, points it at the ROM-resident Amiga impact
  * sample, and posts bounce commands through a Z80 RAM mailbox.
  *
- * Every access is a memory-mapped bus operation through memory::Memory:
+ * Every access is a memory-mapped bus operation through sample::memory:
  * Z80 RAM at $A00000, bus request at $A11100, reset at $A11200. The Z80
  * streams PCM from the cartridge via its bank window and writes the YM2612
  * DAC. No host sound or Z80 API is used.
@@ -36,7 +36,7 @@ class BoingBallFmSfx final {
     static constexpr std::uint16_t kPcmPtrOffset = 0x1E04;
     static constexpr std::uint16_t kPcmLenOffset = 0x1E06;
 
-    explicit BoingBallFmSfx(memory::Memory &memory);
+    BoingBallFmSfx() = default;
 
     /**
      * Requests the Z80 bus, copies the driver, installs PCM bank/pointer/
@@ -61,7 +61,6 @@ class BoingBallFmSfx final {
     void writeCommand(std::uint8_t command);
     void writeZ80WordLE(std::uint16_t offset, std::uint16_t value);
 
-    memory::Memory &memory_;
     bool ready_ = false;
 };
 

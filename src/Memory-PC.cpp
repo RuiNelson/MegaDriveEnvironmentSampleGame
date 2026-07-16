@@ -1,45 +1,97 @@
 /**
  * @file Memory-PC.cpp
- * Delegation from the sample memory API to MegaDriveEnvironment SystemMemory.
+ * Free-function bus access delegated to a bound PC backend.
  */
 
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 
 #include "system/memory/SystemMemory.hpp"
 
+#include <cassert>
+
 #if !defined(PC) || defined(MEGADRIVE)
 #error "Memory-PC.cpp requires the PC target"
 #endif
 
-namespace sample::platform {
+namespace sample::memory {
+namespace {
 
-PlatformMemory::PlatformMemory(SystemMemory &memory) noexcept : memory_(memory) {
+Backend g_backend{};
+
+std::uint8_t systemRead8(void *context, Address address) {
+    return static_cast<SystemMemory *>(context)->readByte(normalize(address));
 }
 
-std::uint8_t PlatformMemory::read8(memory::Address address) noexcept {
-    // SystemMemory owns mapping and device dispatch. Normalize here to mirror
-    // the physical 24-bit address bus before handing it the access.
-    return memory_.readByte(memory::Memory::normalize(address));
+std::uint16_t systemRead16(void *context, Address address) {
+    return static_cast<SystemMemory *>(context)->readWord(normalize(address));
 }
 
-std::uint16_t PlatformMemory::read16(memory::Address address) noexcept {
-    return memory_.readWord(memory::Memory::normalize(address));
+std::uint32_t systemRead32(void *context, Address address) {
+    return static_cast<SystemMemory *>(context)->readLong(normalize(address));
 }
 
-std::uint32_t PlatformMemory::read32(memory::Address address) noexcept {
-    return memory_.readLong(memory::Memory::normalize(address));
+void systemWrite8(void *context, Address address, std::uint8_t value) {
+    static_cast<SystemMemory *>(context)->writeByte(normalize(address), value);
 }
 
-void PlatformMemory::write8(memory::Address address, std::uint8_t value) noexcept {
-    memory_.writeByte(memory::Memory::normalize(address), value);
+void systemWrite16(void *context, Address address, std::uint16_t value) {
+    static_cast<SystemMemory *>(context)->writeWord(normalize(address), value);
 }
 
-void PlatformMemory::write16(memory::Address address, std::uint16_t value) noexcept {
-    memory_.writeWord(memory::Memory::normalize(address), value);
+void systemWrite32(void *context, Address address, std::uint32_t value) {
+    static_cast<SystemMemory *>(context)->writeLong(normalize(address), value);
 }
 
-void PlatformMemory::write32(memory::Address address, std::uint32_t value) noexcept {
-    memory_.writeLong(memory::Memory::normalize(address), value);
+} // namespace
+
+void bind(const Backend &backend) noexcept {
+    g_backend = backend;
 }
 
-} // namespace sample::platform
+void bind(SystemMemory &systemMemory) noexcept {
+    g_backend = Backend{
+        systemRead8,
+        systemRead16,
+        systemRead32,
+        systemWrite8,
+        systemWrite16,
+        systemWrite32,
+        &systemMemory,
+    };
+}
+
+void unbind() noexcept {
+    g_backend = Backend{};
+}
+
+std::uint8_t read8(Address address) noexcept {
+    assert(g_backend.read8 != nullptr);
+    return g_backend.read8(g_backend.context, address);
+}
+
+std::uint16_t read16(Address address) noexcept {
+    assert(g_backend.read16 != nullptr);
+    return g_backend.read16(g_backend.context, address);
+}
+
+std::uint32_t read32(Address address) noexcept {
+    assert(g_backend.read32 != nullptr);
+    return g_backend.read32(g_backend.context, address);
+}
+
+void write8(Address address, std::uint8_t value) noexcept {
+    assert(g_backend.write8 != nullptr);
+    g_backend.write8(g_backend.context, address, value);
+}
+
+void write16(Address address, std::uint16_t value) noexcept {
+    assert(g_backend.write16 != nullptr);
+    g_backend.write16(g_backend.context, address, value);
+}
+
+void write32(Address address, std::uint32_t value) noexcept {
+    assert(g_backend.write32 != nullptr);
+    g_backend.write32(g_backend.context, address, value);
+}
+
+} // namespace sample::memory

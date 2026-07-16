@@ -99,7 +99,7 @@ The easiest first changes are:
 5. Run `./check.sh`; the source-manifest test catches shared `.cpp` files that
    were not included in the real-hardware build.
 
-Keep hardware access behind `memory::Memory`. A feature normally belongs in
+Keep hardware access behind `sample::memory` free functions. A feature normally belongs in
 shared code; change a target adapter only when bootstrapping or memory access is
 actually platform-specific.
 

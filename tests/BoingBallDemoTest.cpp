@@ -6,24 +6,22 @@
 
 namespace {
 
-class RecordingMemory final : public sample::memory::Memory {
-  public:
-    explicit RecordingMemory(bool pal = false) : pal_(pal) {
-    }
+struct RecordingMemory {
+    explicit RecordingMemory(bool pal = false) : pal_(pal) {}
 
-    std::uint8_t read8(sample::memory::Address address) override {
+    std::uint8_t read8(sample::memory::Address address) {
         return address == 0xA10001 && pal_ ? 0x40 : 0;
     }
-    std::uint16_t read16(sample::memory::Address address) override {
+    std::uint16_t read16(sample::memory::Address address) {
         return address == 0xC00008 ? static_cast<std::uint16_t>(verticalCounter << 8) : 0;
     }
-    std::uint32_t read32(sample::memory::Address) override {
+    std::uint32_t read32(sample::memory::Address) {
         return 0;
     }
 
-    void write8(sample::memory::Address, std::uint8_t) override {
+    void write8(sample::memory::Address, std::uint8_t) {
     }
-    void write16(sample::memory::Address address, std::uint16_t value) override {
+    void write16(sample::memory::Address address, std::uint16_t value) {
         if (address >= kBufferStart && address < kBufferEnd) {
             ++bufferWordWrites;
             for (int shift = 0; shift < 16; shift += 4) {
@@ -40,7 +38,7 @@ class RecordingMemory final : public sample::memory::Memory {
             sawDmaCommand = true;
         }
     }
-    void write32(sample::memory::Address address, std::uint32_t value) override {
+    void write32(sample::memory::Address address, std::uint32_t value) {
         write16(address, static_cast<std::uint16_t>(value >> 16));
         write16(address + 2, static_cast<std::uint16_t>(value));
     }
@@ -66,11 +64,39 @@ class RecordingMemory final : public sample::memory::Memory {
     bool sawRasterIndex[16]{};
 };
 
+
+template <typename T>
+sample::memory::Backend makeBackend(T *self) {
+    using sample::memory::Address;
+    return sample::memory::Backend{
+        [](void *ctx, Address address) -> std::uint8_t {
+            return static_cast<T *>(ctx)->read8(address);
+        },
+        [](void *ctx, Address address) -> std::uint16_t {
+            return static_cast<T *>(ctx)->read16(address);
+        },
+        [](void *ctx, Address address) -> std::uint32_t {
+            return static_cast<T *>(ctx)->read32(address);
+        },
+        [](void *ctx, Address address, std::uint8_t value) {
+            static_cast<T *>(ctx)->write8(address, value);
+        },
+        [](void *ctx, Address address, std::uint16_t value) {
+            static_cast<T *>(ctx)->write16(address, value);
+        },
+        [](void *ctx, Address address, std::uint32_t value) {
+            static_cast<T *>(ctx)->write32(address, value);
+        },
+        self,
+    };
+}
+
 } // namespace
 
 int main() {
     RecordingMemory ntscMemory;
-    sample::demo::BoingBallDemo demo{ntscMemory};
+    sample::memory::bind(makeBackend(&ntscMemory));
+    sample::demo::BoingBallDemo demo;
     demo.initialize();
     assert(demo.refreshRate() == 60);
     assert(demo.displayedFps() == 0);
@@ -169,8 +195,10 @@ int main() {
 
     // A real-MD-like beam deadline yields after one bounded tile;
     // clearing the deadline lets the exact same renderer resume next VBlank.
+    sample::memory::unbind();
     RecordingMemory budgetMemory;
-    sample::demo::BoingBallDemo budgetDemo{budgetMemory};
+    sample::memory::bind(makeBackend(&budgetMemory));
+    sample::demo::BoingBallDemo budgetDemo;
     budgetDemo.initialize();
     budgetDemo.activate();
     budgetMemory.resetRecording();
@@ -186,8 +214,10 @@ int main() {
     budgetDemo.render();
     assert(budgetMemory.sawDmaCommand);
 
+    sample::memory::unbind();
     RecordingMemory palMemory{true};
-    sample::demo::BoingBallDemo palDemo{palMemory};
+    sample::memory::bind(makeBackend(&palMemory));
+    sample::demo::BoingBallDemo palDemo;
     palDemo.initialize();
     palDemo.activate();
     assert(palDemo.refreshRate() == 50);
@@ -196,5 +226,6 @@ int main() {
         palDemo.render();
     }
     assert(palDemo.displayedFps() == 49);
+    sample::memory::unbind();
     return 0;
 }

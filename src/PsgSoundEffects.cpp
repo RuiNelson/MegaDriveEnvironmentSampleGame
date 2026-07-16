@@ -12,9 +12,6 @@ constexpr memory::Address kPsgPort = 0xC00011;
 
 } // namespace
 
-PsgSoundEffects::PsgSoundEffects(memory::Memory &memory) : memory_(memory) {
-}
-
 void PsgSoundEffects::initialize() {
     effect_ = Effect::None;
     frame_ = 0;
@@ -109,7 +106,7 @@ void PsgSoundEffects::playBallWallBounce() {
 }
 
 void PsgSoundEffects::write(std::uint8_t value) {
-    memory_.write8(kPsgPort, value);
+    memory::write8(kPsgPort, value);
 }
 
 void PsgSoundEffects::setTone(std::uint16_t period, std::uint8_t attenuation) {

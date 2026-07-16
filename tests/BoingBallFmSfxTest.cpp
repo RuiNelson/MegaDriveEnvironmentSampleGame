@@ -9,14 +9,13 @@
 
 namespace {
 
-class RecordingMemory final : public sample::memory::Memory {
-  public:
+struct RecordingMemory {
     explicit RecordingMemory(std::vector<std::uint8_t> rom) : rom_(std::move(rom)) {
         rom_.resize(sample::assets::kRomSize, 0xFF);
         z80Ram_.fill(0xCC);
     }
 
-    std::uint8_t read8(sample::memory::Address address) override {
+    std::uint8_t read8(sample::memory::Address address) {
         if (address >= sample::audio::BoingBallFmSfx::kZ80RamBase &&
             address < sample::audio::BoingBallFmSfx::kZ80RamBase + z80Ram_.size()) {
             return z80Ram_[address - sample::audio::BoingBallFmSfx::kZ80RamBase];
@@ -27,7 +26,7 @@ class RecordingMemory final : public sample::memory::Memory {
         return 0;
     }
 
-    std::uint16_t read16(sample::memory::Address address) override {
+    std::uint16_t read16(sample::memory::Address address) {
         if (address == sample::audio::BoingBallFmSfx::kZ80BusRequest) {
             // Emulate an immediately acknowledged bus request.
             return busRequested_ ? 0x0000 : 0x0100;
@@ -35,11 +34,11 @@ class RecordingMemory final : public sample::memory::Memory {
         return static_cast<std::uint16_t>((read8(address) << 8) | read8(address + 1));
     }
 
-    std::uint32_t read32(sample::memory::Address address) override {
+    std::uint32_t read32(sample::memory::Address address) {
         return (static_cast<std::uint32_t>(read16(address)) << 16) | read16(address + 2);
     }
 
-    void write8(sample::memory::Address address, std::uint8_t value) override {
+    void write8(sample::memory::Address address, std::uint8_t value) {
         if (address >= sample::audio::BoingBallFmSfx::kZ80RamBase &&
             address < sample::audio::BoingBallFmSfx::kZ80RamBase + z80Ram_.size()) {
             z80Ram_[address - sample::audio::BoingBallFmSfx::kZ80RamBase] = value;
@@ -49,7 +48,7 @@ class RecordingMemory final : public sample::memory::Memory {
         writes.push_back({address, value});
     }
 
-    void write16(sample::memory::Address address, std::uint16_t value) override {
+    void write16(sample::memory::Address address, std::uint16_t value) {
         if (address == sample::audio::BoingBallFmSfx::kZ80BusRequest) {
             busRequested_ = (value & 0x0100) != 0;
             controlWords.push_back({address, value});
@@ -64,7 +63,7 @@ class RecordingMemory final : public sample::memory::Memory {
         write8(address + 1, static_cast<std::uint8_t>(value));
     }
 
-    void write32(sample::memory::Address address, std::uint32_t value) override {
+    void write32(sample::memory::Address address, std::uint32_t value) {
         write16(address, static_cast<std::uint16_t>(value >> 16));
         write16(address + 2, static_cast<std::uint16_t>(value));
     }
@@ -99,11 +98,39 @@ std::vector<std::uint8_t> makeRomWithDriverMarker() {
     return rom;
 }
 
+
+template <typename T>
+sample::memory::Backend makeBackend(T *self) {
+    using sample::memory::Address;
+    return sample::memory::Backend{
+        [](void *ctx, Address address) -> std::uint8_t {
+            return static_cast<T *>(ctx)->read8(address);
+        },
+        [](void *ctx, Address address) -> std::uint16_t {
+            return static_cast<T *>(ctx)->read16(address);
+        },
+        [](void *ctx, Address address) -> std::uint32_t {
+            return static_cast<T *>(ctx)->read32(address);
+        },
+        [](void *ctx, Address address, std::uint8_t value) {
+            static_cast<T *>(ctx)->write8(address, value);
+        },
+        [](void *ctx, Address address, std::uint16_t value) {
+            static_cast<T *>(ctx)->write16(address, value);
+        },
+        [](void *ctx, Address address, std::uint32_t value) {
+            static_cast<T *>(ctx)->write32(address, value);
+        },
+        self,
+    };
+}
+
 } // namespace
 
 int main() {
     RecordingMemory memory{makeRomWithDriverMarker()};
-    sample::audio::BoingBallFmSfx sfx{memory};
+    sample::memory::bind(makeBackend(&memory));
+    sample::audio::BoingBallFmSfx sfx;
 
     assert(!sfx.ready());
     sfx.initialize();
@@ -186,5 +213,6 @@ int main() {
     assert(memory.z80Ram_[sample::audio::BoingBallFmSfx::kMailboxOffset] ==
            sample::audio::BoingBallFmSfx::kCommandWall);
 
+    sample::memory::unbind();
     return 0;
 }

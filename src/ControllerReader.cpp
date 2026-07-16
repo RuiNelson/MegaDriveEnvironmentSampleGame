@@ -17,29 +17,28 @@ constexpr std::uint8_t kThLow = 0x00;
 
 } // namespace
 
-ControllerReader::ControllerReader(memory::Memory &memory, Player player)
-    : memory_(memory),
-      dataPort_(player == Player::One ? kPlayer1DataPort : kPlayer2DataPort),
+ControllerReader::ControllerReader(Player player)
+    : dataPort_(player == Player::One ? kPlayer1DataPort : kPlayer2DataPort),
       controlPort_(player == Player::One ? kPlayer1ControlPort : kPlayer2ControlPort) {
 }
 
 void ControllerReader::initialize() {
     // Control bit 6 selects TH's direction; setting it makes TH an output.
-    memory_.write8(controlPort_, kThHigh);
-    memory_.write8(dataPort_, kThHigh);
+    memory::write8(controlPort_, kThHigh);
+    memory::write8(dataPort_, kThHigh);
 }
 
 ControllerState ControllerReader::read() {
     // TH high exposes directions plus B/C. TH low keeps directions on bits 0/1,
     // grounds bits 2/3 as a three-button signature, and exposes A/Start.
-    memory_.write8(dataPort_, kThHigh);
-    const std::uint8_t high = memory_.read8(dataPort_);
+    memory::write8(dataPort_, kThHigh);
+    const std::uint8_t high = memory::read8(dataPort_);
 
-    memory_.write8(dataPort_, kThLow);
-    const std::uint8_t low = memory_.read8(dataPort_);
+    memory::write8(dataPort_, kThLow);
+    const std::uint8_t low = memory::read8(dataPort_);
 
     // Keep TH high between samples, as expected by a standard controller.
-    memory_.write8(dataPort_, kThHigh);
+    memory::write8(dataPort_, kThHigh);
 
     ControllerState state;
     state.connected = (low & 0x0C) == 0; // grounded signature in the TH-low phase

@@ -5,8 +5,8 @@
  * Target-independent VDP operations implemented through memory-mapped I/O.
  *
  * Both MegaDriveEnvironment and real hardware expose the VDP at the same
- * 68000 addresses. Consequently, this renderer depends only on memory::Memory;
- * the selected memory backend is the sole platform-specific implementation.
+ * 68000 addresses. Consequently, this renderer depends only on the free
+ * functions in sample::memory; the selected backend is the sole platform piece.
  */
 
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
@@ -31,29 +31,28 @@ inline constexpr int kPlaneHeight = 32;
 inline constexpr int kHSyncLineBatch = 16;
 
 /** Writes one VDP register through the memory-mapped control port. */
-void writeRegister(memory::Memory &memory, std::uint8_t reg, std::uint8_t value);
+void writeRegister(std::uint8_t reg, std::uint8_t value);
 
 /** Selects the byte address at which subsequent data-port writes enter VRAM. */
-void setVramWrite(memory::Memory &memory, std::uint16_t address);
+void setVramWrite(std::uint16_t address);
 
 /** Selects the byte address at which subsequent data-port writes enter CRAM. */
-void setCramWrite(memory::Memory &memory, std::uint16_t address);
+void setCramWrite(std::uint16_t address);
 
 /**
  * Configures the VDP for 320x224 Mode 5 and clears all 64 KiB of VRAM.
  * The display remains disabled until finishInitialization() is called.
  */
-void initialize(memory::Memory &memory);
+void initialize();
 
 /** Enables the display after palettes, tiles and planes have been populated. */
-void finishInitialization(memory::Memory &memory);
+void finishInitialization();
 
 /** Positions the VDP write cursor at the first per-scanline HScroll pair. */
-void beginHorizontalScrollLines(memory::Memory &memory, int firstScanline);
+void beginHorizontalScrollLines(int firstScanline);
 
 /** Appends one Plane A / Plane B pair after beginHorizontalScrollLines(). */
-void appendHorizontalScrollLine(memory::Memory &memory,
-                                std::uint16_t planeA,
+void appendHorizontalScrollLine(std::uint16_t planeA,
                                 std::uint16_t planeB);
 
 /**
@@ -62,7 +61,7 @@ void appendHorizontalScrollLine(memory::Memory &memory,
  * @param palette Palette number in the range 0..3.
  * @param colors Mega Drive CRAM words in `0000BBB0GGG0RRR0` format.
  */
-void loadPalette(memory::Memory &memory, std::uint8_t palette, const std::uint16_t (&colors)[16]);
+void loadPalette(std::uint8_t palette, const std::uint16_t (&colors)[16]);
 
 /**
  * Copies packed 4-bpp tiles from the game ROM into VRAM.
@@ -70,8 +69,7 @@ void loadPalette(memory::Memory &memory, std::uint8_t palette, const std::uint16
  * Each tile occupies 32 bytes in ROM and VRAM. `romAddress` is a byte address
  * on the 68000 bus, while `firstVramTile` is a tile index.
  */
-void loadTilesFromRom(memory::Memory &memory,
-                      std::uint32_t romAddress,
+void loadTilesFromRom(std::uint32_t romAddress,
                       std::uint16_t firstVramTile,
                       std::uint16_t tileCount);
 
@@ -79,17 +77,15 @@ void loadTilesFromRom(memory::Memory &memory,
  * Copies an even Work RAM block to VRAM with the VDP's 68000-bus DMA mode.
  * `wordCount` is the number of 16-bit words and must not be zero.
  */
-void dmaToVram(memory::Memory &memory,
-               memory::Address sourceAddress,
+void dmaToVram(memory::Address sourceAddress,
                std::uint16_t destinationAddress,
                std::uint16_t wordCount);
 
 /** Fills all 64x32 cells of a plane with the same tile descriptor. */
-void fillPlane(memory::Memory &memory, std::uint16_t planeBase, std::uint16_t tileDescriptor);
+void fillPlane(std::uint16_t planeBase, std::uint16_t tileDescriptor);
 
 /** Fills a bounded plane rectangle, issuing one contiguous VDP write per row. */
-void fillPlaneArea(memory::Memory &memory,
-                   std::uint16_t planeBase,
+void fillPlaneArea(std::uint16_t planeBase,
                    int column,
                    int row,
                    int width,
@@ -97,8 +93,7 @@ void fillPlaneArea(memory::Memory &memory,
                    std::uint16_t tileDescriptor);
 
 /** Writes one in-bounds cell in a plane name table. */
-void writePlaneTile(memory::Memory &memory,
-                    std::uint16_t planeBase,
+void writePlaneTile(std::uint16_t planeBase,
                     int column,
                     int row,
                     std::uint16_t tileDescriptor);
@@ -107,8 +102,7 @@ void writePlaneTile(memory::Memory &memory,
  * Writes a null-terminated printable ASCII string using a contiguous
  * 0x20..0x7E font tile set. Unsupported characters use tile zero.
  */
-void writeText(memory::Memory &memory,
-               std::uint16_t planeBase,
+void writeText(std::uint16_t planeBase,
                int column,
                int row,
                const char *text,
@@ -125,8 +119,7 @@ void writeText(memory::Memory &memory,
  * @param heightInTiles Sprite height in the range 1..4.
  * @param nextSprite Index of the next linked entry; zero terminates the list.
  */
-void writeSprite(memory::Memory &memory,
-                 int spriteIndex,
+void writeSprite(int spriteIndex,
                  int x,
                  int y,
                  int widthInTiles,

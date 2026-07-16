@@ -207,11 +207,10 @@ constexpr std::uint16_t kBackdropPalette[16]{
 
 } // namespace
 
-BoingBallDemo::BoingBallDemo(memory::Memory &memory) : memory_(memory) {
-}
+
 
 void BoingBallDemo::initialize() {
-    refreshRate_ = (memory_.read8(kHardwareVersionRegister) & kPalVideoBit) != 0 ? 50 : 60;
+    refreshRate_ = (memory::read8(kHardwareVersionRegister) & kPalVideoBit) != 0 ? 50 : 60;
     uploadBackgroundTiles();
 }
 
@@ -248,28 +247,28 @@ void BoingBallDemo::activate() {
     setBallSize(kDefaultZoomSize);
     beginSurfaceRaster();
 
-    vdp::loadPalette(memory_, 0, kTextPalette);
-    vdp::loadPalette(memory_, 1, kBallPalette);
-    vdp::loadPalette(memory_, 2, kShadowPalette);
-    vdp::loadPalette(memory_, 3, kBackdropPalette);
-    vdp::writeRegister(memory_, 0x07, 0x33); // grey backdrop behind the wall grid
+    vdp::loadPalette(0, kTextPalette);
+    vdp::loadPalette(1, kBallPalette);
+    vdp::loadPalette(2, kShadowPalette);
+    vdp::loadPalette(3, kBackdropPalette);
+    vdp::writeRegister(0x07, 0x33); // grey backdrop behind the wall grid
 
     // Only visible name-table cells need replacing during the transition.
     // Both grid surfaces reference patterns built by uploadBackgroundTiles().
-    vdp::fillPlaneArea(memory_, vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
     mapWallGrid();
-    vdp::beginHorizontalScrollLines(memory_, 0);
+    vdp::beginHorizontalScrollLines(0);
     for (int scanline = 0; scanline < 224; ++scanline) {
-        vdp::appendHorizontalScrollLine(memory_, 0, 0);
+        vdp::appendHorizontalScrollLine(0, 0);
     }
-    vdp::writeText(memory_, vdp::kPlaneA, 2, 1, "SOFTWARE 3D BOING BALL", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 31, 1, "FPS", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 7, 3, "UP/DOWN ZOOM   START RETURN", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 2, 1, "SOFTWARE 3D BOING BALL", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 31, 1, "FPS", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 7, 3, "UP/DOWN ZOOM   START RETURN", kFontTile);
 
     // The Window plane replaces Plane A below the horizon, yielding a second
     // perspective surface while Plane B remains the upright wall grid.
-    vdp::writeRegister(memory_, 0x11, 0x00);
-    vdp::writeRegister(memory_, 0x12, static_cast<std::uint8_t>(0x80 | kFloorFirstRow));
+    vdp::writeRegister(0x11, 0x00);
+    vdp::writeRegister(0x12, static_cast<std::uint8_t>(0x80 | kFloorFirstRow));
 
     renderFps();
 }
@@ -323,7 +322,7 @@ void BoingBallDemo::render() {
     if (surfaceReadyForDma_) {
         const auto inactiveBankFirstTile = displayBank_ == 0
             ? kBallBank1FirstTile : kBallBank0FirstTile;
-        vdp::dmaToVram(memory_, kTileBufferAddress,
+        vdp::dmaToVram(kTileBufferAddress,
                        static_cast<std::uint16_t>(inactiveBankFirstTile * 32),
                        static_cast<std::uint16_t>(rasterTileCount_ * 16));
 
@@ -368,7 +367,7 @@ void BoingBallDemo::render() {
             const int width = remainingColumns < 4 ? remainingColumns : 4;
             const int next = sprite + 1 < ballSpriteCount ? sprite + 1 : 16;
             const auto tile = static_cast<std::uint16_t>(displayedBankFirstTile + tileOffset);
-            vdp::writeSprite(memory_, sprite, x + blockX * 32, y + blockY * 32,
+            vdp::writeSprite(sprite, x + blockX * 32, y + blockY * 32,
                              width, height, tile, 1, next);
             tileOffset = static_cast<std::uint16_t>(tileOffset + width * height);
             ++sprite;
@@ -382,7 +381,7 @@ void BoingBallDemo::render() {
     for (int block = 0; block < 4; ++block) {
         const int shadowSprite = 16 + block;
         const int next = block == 3 ? 0 : shadowSprite + 1;
-        vdp::writeSprite(memory_, shadowSprite, shadowX + block * 32, shadowY,
+        vdp::writeSprite(shadowSprite, shadowX + block * 32, shadowY,
                          4, 1, static_cast<std::uint16_t>(kShadowFirstTile + block * 4), 2, next);
     }
 
@@ -520,7 +519,6 @@ void BoingBallDemo::rasterizeNextBallTile() {
 
     std::uint32_t tilePixels = 0;
     if (!knownTransparent) {
-        auto &memory = memory_;
         const auto *const sourceCoordinate = sourceCoordinate_;
         const auto *const surfaceColor = surfaceColor_;
         // Source X is constant for every row of this tile — load it once.
@@ -545,7 +543,7 @@ void BoingBallDemo::rasterizeNextBallTile() {
                         sx0, sx1, sx2, sx3, sx4, sx5, sx6, sx7, surfaceColor);
                 }
                 tilePixels |= packedPixels;
-                memory.write32(destination, packedPixels);
+                memory::write32(destination, packedPixels);
                 destination += 4;
             }
         } else {
@@ -558,7 +556,7 @@ void BoingBallDemo::rasterizeNextBallTile() {
                         sx0, sx1, sx2, sx3, sx4, sx5, sx6, sx7, surfaceColor);
                 }
                 tilePixels |= packedPixels;
-                memory.write32(destination, packedPixels);
+                memory::write32(destination, packedPixels);
                 destination += 4;
             }
         }
@@ -602,12 +600,12 @@ void BoingBallDemo::rasterizeBallUntilBudget() {
 }
 
 bool BoingBallDemo::videoBudgetExpired() const {
-    const auto verticalCounter = static_cast<std::uint8_t>(memory_.read16(kHvCounter) >> 8);
+    const auto verticalCounter = static_cast<std::uint8_t>(memory::read16(kHvCounter) >> 8);
     return verticalCounter >= kRasterDeadlineLine && verticalCounter < kVBlankFirstLine;
 }
 
 void BoingBallDemo::uploadShadowTiles() {
-    vdp::setVramWrite(memory_, static_cast<std::uint16_t>(kShadowFirstTile * 32));
+    vdp::setVramWrite(static_cast<std::uint16_t>(kShadowFirstTile * 32));
     const int margin = (kMaximumBallSize - displayedBallSize_) >> 1;
     for (int block = 0; block < 4; ++block) {
         for (int tile = 0; tile < 4; ++tile) {
@@ -627,8 +625,8 @@ void BoingBallDemo::uploadShadowTiles() {
                     const int shift = (3 - (localX & 3)) * 4;
                     words[word] = static_cast<std::uint16_t>(words[word] | (color << shift));
                 }
-                memory_.write16(vdp::kDataPort, words[0]);
-                memory_.write16(vdp::kDataPort, words[1]);
+                memory::write16(vdp::kDataPort, words[0]);
+                memory::write16(vdp::kDataPort, words[1]);
             }
         }
     }
@@ -648,13 +646,13 @@ void BoingBallDemo::uploadBackgroundTiles() {
                 const auto right = static_cast<std::uint16_t>(
                     (wallGridPixel(x + 4, y) << 12) | (wallGridPixel(x + 5, y) << 8) |
                     (wallGridPixel(x + 6, y) << 4) | wallGridPixel(x + 7, y));
-                memory_.write16(wallDestination, left);
-                memory_.write16(wallDestination + 2, right);
+                memory::write16(wallDestination, left);
+                memory::write16(wallDestination + 2, right);
                 wallDestination += 4;
             }
         }
     }
-    vdp::dmaToVram(memory_, kTileBufferAddress,
+    vdp::dmaToVram(kTileBufferAddress,
                    static_cast<std::uint16_t>(kWallFirstTile * 32), kWallTileCount * 16);
 
     std::uint16_t bufferedTiles = 0;
@@ -673,8 +671,8 @@ void BoingBallDemo::uploadBackgroundTiles() {
                 const auto right = static_cast<std::uint16_t>(
                     (floorGridPixel(x + 4, y) << 12) | (floorGridPixel(x + 5, y) << 8) |
                     (floorGridPixel(x + 6, y) << 4) | floorGridPixel(x + 7, y));
-                memory_.write16(destination, left);
-                memory_.write16(destination + 2, right);
+                memory::write16(destination, left);
+                memory::write16(destination + 2, right);
                 destination += 4;
             }
 
@@ -682,7 +680,7 @@ void BoingBallDemo::uploadBackgroundTiles() {
             const bool bufferFull = bufferedTiles == kTileBufferTileCapacity;
             const bool finalTile = tileRow == 7 && tileColumn == 39;
             if (bufferFull || finalTile) {
-                vdp::dmaToVram(memory_, kTileBufferAddress,
+                vdp::dmaToVram(kTileBufferAddress,
                                static_cast<std::uint16_t>(firstBufferedTile * 32),
                                static_cast<std::uint16_t>(bufferedTiles * 16));
                 firstBufferedTile = static_cast<std::uint16_t>(firstBufferedTile + bufferedTiles);
@@ -696,10 +694,10 @@ void BoingBallDemo::uploadBackgroundTiles() {
     for (int row = 0; row < 8; ++row) {
         const auto address = static_cast<std::uint16_t>(
             vdp::kWindowPlane + ((kFloorFirstRow + row) * vdp::kPlaneWidth) * 2);
-        vdp::setVramWrite(memory_, address);
+        vdp::setVramWrite(address);
         for (int column = 0; column < 40; ++column) {
             const auto tile = static_cast<std::uint16_t>(kFloorFirstTile + row * 40 + column);
-            memory_.write16(vdp::kDataPort, vdp::tileDescriptor(tile, 3));
+            memory::write16(vdp::kDataPort, vdp::tileDescriptor(tile, 3));
         }
     }
 }
@@ -709,12 +707,12 @@ void BoingBallDemo::mapWallGrid() {
     for (int row = 0; row < kFloorFirstRow; ++row) {
         const auto address = static_cast<std::uint16_t>(
             vdp::kPlaneB + (row * vdp::kPlaneWidth) * 2);
-        vdp::setVramWrite(memory_, address);
+        vdp::setVramWrite(address);
         int tileColumn = 0;
         for (int column = 0; column < 40; ++column) {
             const auto tile = static_cast<std::uint16_t>(
                 kWallFirstTile + tileRow * 3 + tileColumn);
-            memory_.write16(vdp::kDataPort, vdp::tileDescriptor(tile, 3));
+            memory::write16(vdp::kDataPort, vdp::tileDescriptor(tile, 3));
             if (++tileColumn == 3) {
                 tileColumn = 0;
             }
@@ -733,9 +731,9 @@ void BoingBallDemo::renderFps() {
         fps -= 10;
     }
     const char ones = static_cast<char>('0' + fps);
-    vdp::writePlaneTile(memory_, vdp::kPlaneA, 35, 1,
+    vdp::writePlaneTile(vdp::kPlaneA, 35, 1,
                         vdp::tileDescriptor(static_cast<std::uint16_t>(kFontTile + tens - 0x20), 0, true));
-    vdp::writePlaneTile(memory_, vdp::kPlaneA, 36, 1,
+    vdp::writePlaneTile(vdp::kPlaneA, 36, 1,
                         vdp::tileDescriptor(static_cast<std::uint16_t>(kFontTile + ones - 0x20), 0, true));
     fpsNeedsRender_ = false;
 }

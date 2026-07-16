@@ -27,13 +27,12 @@ void yieldToZ80() {
 
 } // namespace
 
-BoingBallFmSfx::BoingBallFmSfx(memory::Memory &memory) : memory_(memory) {
-}
+
 
 void BoingBallFmSfx::writeZ80WordLE(std::uint16_t offset, std::uint16_t value) {
     // Z80 is little-endian; write low byte at the lower address.
-    memory_.write8(kZ80RamBase + offset, static_cast<std::uint8_t>(value & 0xFFu));
-    memory_.write8(kZ80RamBase + offset + 1, static_cast<std::uint8_t>((value >> 8) & 0xFFu));
+    memory::write8(kZ80RamBase + offset, static_cast<std::uint8_t>(value & 0xFFu));
+    memory::write8(kZ80RamBase + offset + 1, static_cast<std::uint8_t>((value >> 8) & 0xFFu));
 }
 
 void BoingBallFmSfx::initialize() {
@@ -49,11 +48,11 @@ void BoingBallFmSfx::initialize() {
     const auto romBase = static_cast<memory::Address>(assets::kZ80BoingBallSfxOffset);
     const auto size = assets::kZ80BoingBallSfxSize;
     for (unsigned index = 0; index < size; ++index) {
-        memory_.write8(kZ80RamBase + index, memory_.read8(romBase + index));
+        memory::write8(kZ80RamBase + index, memory::read8(romBase + index));
     }
 
-    memory_.write8(kZ80RamBase + kMailboxOffset, kCommandIdle);
-    memory_.write8(kZ80RamBase + kStatusOffset, 0);
+    memory::write8(kZ80RamBase + kMailboxOffset, kCommandIdle);
+    memory::write8(kZ80RamBase + kStatusOffset, 0);
 
     // Point the Z80 at the ROM-resident Amiga sample through its 32 KiB bank.
     const auto pcmOffset = assets::kBoingPcmOffset;
@@ -70,7 +69,7 @@ void BoingBallFmSfx::initialize() {
 
     for (int spin = 0; spin < kBusAckSpinLimit; ++spin) {
         requestBus();
-        const auto status = memory_.read8(kZ80RamBase + kStatusOffset);
+        const auto status = memory::read8(kZ80RamBase + kStatusOffset);
         releaseBus();
         if (status == 1) {
             break;
@@ -93,24 +92,24 @@ bool BoingBallFmSfx::ready() const {
 }
 
 void BoingBallFmSfx::requestBus() {
-    memory_.write16(kZ80BusRequest, kBusRequestWord);
+    memory::write16(kZ80BusRequest, kBusRequestWord);
     for (int spin = 0; spin < kBusAckSpinLimit; ++spin) {
-        if ((memory_.read16(kZ80BusRequest) & kBusRequestWord) == 0) {
+        if ((memory::read16(kZ80BusRequest) & kBusRequestWord) == 0) {
             return;
         }
     }
 }
 
 void BoingBallFmSfx::releaseBus() {
-    memory_.write16(kZ80BusRequest, kBusReleaseWord);
+    memory::write16(kZ80BusRequest, kBusReleaseWord);
 }
 
 void BoingBallFmSfx::holdReset() {
-    memory_.write16(kZ80Reset, kResetHoldWord);
+    memory::write16(kZ80Reset, kResetHoldWord);
 }
 
 void BoingBallFmSfx::releaseReset() {
-    memory_.write16(kZ80Reset, kResetRunWord);
+    memory::write16(kZ80Reset, kResetRunWord);
 }
 
 void BoingBallFmSfx::writeCommand(std::uint8_t command) {
@@ -119,7 +118,7 @@ void BoingBallFmSfx::writeCommand(std::uint8_t command) {
     }
 
     requestBus();
-    memory_.write8(kZ80RamBase + kMailboxOffset, command);
+    memory::write8(kZ80RamBase + kMailboxOffset, command);
     releaseBus();
 }
 

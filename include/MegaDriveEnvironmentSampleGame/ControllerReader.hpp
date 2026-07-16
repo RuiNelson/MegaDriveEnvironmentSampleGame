@@ -33,16 +33,14 @@ struct ControllerState {
 /**
  * Reads a standard three-button Mega Drive controller through memory-mapped
  * I/O. The implementation is shared by MegaDriveEnvironment and real hardware;
- * only the supplied memory::Memory backend changes.
+ * the sample::memory free functions select the active backend.
  */
 class ControllerReader {
   public:
     /**
      * Selects the data and control ports for one player.
-     *
-     * `memory` is retained by reference and must outlive this reader.
      */
-    ControllerReader(memory::Memory &memory, Player player);
+    explicit ControllerReader(Player player);
 
     /** Configures TH as an output and leaves it high. Call once during startup. */
     void initialize();
@@ -59,8 +57,6 @@ class ControllerReader {
     /** Tests one active-low input bit. */
     [[nodiscard]] static bool pressed(std::uint8_t value, unsigned bit);
 
-    /** Bus backend shared by the PC and real-hardware builds. */
-    memory::Memory &memory_;
     /** Selected controller's memory-mapped data and direction registers. */
     memory::Address dataPort_;
     memory::Address controlPort_;

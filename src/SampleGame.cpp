@@ -46,9 +46,7 @@ constexpr std::uint16_t kFloorPalette[16]{
 
 } // namespace
 
-SampleGame::SampleGame(memory::Memory &memory)
-    : memory_(memory), player1Controller_(memory, controllers::Player::One), soundEffects_(memory),
-      boingBallFmSfx_(memory), boingBallDemo_(memory) {
+SampleGame::SampleGame() : player1Controller_(controllers::Player::One) {
 }
 
 void SampleGame::initialize() {
@@ -85,11 +83,11 @@ void SampleGame::onHSync() {
 }
 
 void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
-    vdp::beginHorizontalScrollLines(memory_, firstScanline);
+    vdp::beginHorizontalScrollLines(firstScanline);
     const int endScanline = firstScanline + vdp::kHSyncLineBatch;
     if (screen_ == Screen::BoingBall) {
         for (int currentScanline = firstScanline; currentScanline < endScanline; ++currentScanline) {
-            vdp::appendHorizontalScrollLine(memory_, 0, 0);
+            vdp::appendHorizontalScrollLine(0, 0);
         }
         return;
     }
@@ -106,39 +104,39 @@ void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
         } else {
             offset = -static_cast<int>(64u - step);
         }
-        vdp::appendHorizontalScrollLine(memory_, 0, static_cast<std::uint16_t>(offset));
+        vdp::appendHorizontalScrollLine(0, static_cast<std::uint16_t>(offset));
     }
 }
 
 void SampleGame::initializeGraphics() {
-    vdp::initialize(memory_);
+    vdp::initialize();
     boingBallDemo_.initialize();
 
     // Copy only the required spans even though all assets share one ROM blob.
     const auto tileRom = static_cast<memory::Address>(assets::kTilesOffset);
-    vdp::loadTilesFromRom(memory_, tileRom, kFontTile, kFontTileCount);
-    vdp::loadTilesFromRom(memory_, tileRom + kPlayerRomTile * 32, kPlayerTile, 4);
-    vdp::loadTilesFromRom(memory_, tileRom + kGemRomTile * 32, kGemTile, 1);
-    vdp::loadTilesFromRom(memory_, tileRom + kFloorRomTile * 32, kFloorTile, 1);
+    vdp::loadTilesFromRom(tileRom, kFontTile, kFontTileCount);
+    vdp::loadTilesFromRom(tileRom + kPlayerRomTile * 32, kPlayerTile, 4);
+    vdp::loadTilesFromRom(tileRom + kGemRomTile * 32, kGemTile, 1);
+    vdp::loadTilesFromRom(tileRom + kFloorRomTile * 32, kFloorTile, 1);
 
     activateGameScreen();
-    vdp::finishInitialization(memory_);
+    vdp::finishInitialization();
 }
 
 void SampleGame::activateGameScreen() {
-    vdp::writeRegister(memory_, 0x07, 0x00);
-    vdp::writeRegister(memory_, 0x11, 0x00);
-    vdp::writeRegister(memory_, 0x12, 0x00); // disable the demo's bottom Window plane
-    vdp::loadPalette(memory_, 0, kTextPalette);
-    vdp::loadPalette(memory_, 1, kPlayerPalette);
-    vdp::loadPalette(memory_, 2, kGemPalette);
-    vdp::loadPalette(memory_, 3, kFloorPalette);
+    vdp::writeRegister(0x07, 0x00);
+    vdp::writeRegister(0x11, 0x00);
+    vdp::writeRegister(0x12, 0x00); // disable the demo's bottom Window plane
+    vdp::loadPalette(0, kTextPalette);
+    vdp::loadPalette(1, kPlayerPalette);
+    vdp::loadPalette(2, kGemPalette);
+    vdp::loadPalette(3, kFloorPalette);
 
-    vdp::fillPlaneArea(memory_, vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
-    vdp::fillPlaneArea(memory_, vdp::kPlaneB, 0, 0, 40, 28,
+    vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    vdp::fillPlaneArea(vdp::kPlaneB, 0, 0, 40, 28,
                        vdp::tileDescriptor(kFloorTile, 3));
-    vdp::writeText(memory_, vdp::kPlaneA, 2, 1, "MEGADRIVE ENVIRONMENT SAMPLE", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 2, 26, "D-PAD MOVE   A RESET   START DEMO", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 2, 1, "MEGADRIVE ENVIRONMENT SAMPLE", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 2, 26, "D-PAD MOVE   A RESET   START DEMO", kFontTile);
 }
 
 void SampleGame::update() {
@@ -220,7 +218,7 @@ void SampleGame::render() {
 
     // Avoid snprintf, division and initialized local arrays (which can make a
     // freestanding compiler request memcpy) in this shared renderer.
-    vdp::writeText(memory_, vdp::kPlaneA, 15, 3, "SCORE ", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 15, 3, "SCORE ", kFontTile);
     auto score = session_.score();
     char hundreds = '0';
     char tens = '0';
@@ -233,49 +231,49 @@ void SampleGame::render() {
         score = static_cast<std::uint16_t>(score - 10);
     }
     const char ones = static_cast<char>('0' + score);
-    vdp::writePlaneTile(memory_, vdp::kPlaneA, 21, 3,
+    vdp::writePlaneTile(vdp::kPlaneA, 21, 3,
                         vdp::tileDescriptor(static_cast<std::uint16_t>(kFontTile + hundreds - 0x20), 0, true));
-    vdp::writePlaneTile(memory_, vdp::kPlaneA, 22, 3,
+    vdp::writePlaneTile(vdp::kPlaneA, 22, 3,
                         vdp::tileDescriptor(static_cast<std::uint16_t>(kFontTile + tens - 0x20), 0, true));
-    vdp::writePlaneTile(memory_, vdp::kPlaneA, 23, 3,
+    vdp::writePlaneTile(vdp::kPlaneA, 23, 3,
                         vdp::tileDescriptor(static_cast<std::uint16_t>(kFontTile + ones - 0x20), 0, true));
 
     const char *message =
         session_.phase() == game::Phase::GameOver ? "GAME OVER  A/START RESTART" : "                           ";
-    vdp::writeText(memory_, vdp::kPlaneA, 7, 13, message, kFontTile);
+    vdp::writeText(vdp::kPlaneA, 7, 13, message, kFontTile);
 
     const auto &player = session_.player();
     const auto &gem = session_.gem();
     const auto &enemy = session_.enemy();
     // SAT links form 0 -> 1 -> 2 -> 0; link zero terminates traversal.
-    vdp::writeSprite(memory_, 0, player.x(), player.y(), 2, 2, kPlayerTile, 1, 1);
-    vdp::writeSprite(memory_, 1, gem.x(), gem.y(), 1, 1, kGemTile, 2, 2);
-    vdp::writeSprite(memory_, 2, enemy.x(), enemy.y(), 2, 2, kEnemyTile, 3, 0);
+    vdp::writeSprite(0, player.x(), player.y(), 2, 2, kPlayerTile, 1, 1);
+    vdp::writeSprite(1, gem.x(), gem.y(), 1, 1, kGemTile, 2, 2);
+    vdp::writeSprite(2, enemy.x(), enemy.y(), 2, 2, kEnemyTile, 3, 0);
 }
 
 void SampleGame::renderCookieBanner() {
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 7, "+------------------------------------+", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 8, "|        COOKIE CONSENT              |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 9, "|                                    |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 10, "| THIS GAME WAS MADE IN THE          |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 11, "| EUROPEAN UNION.                    |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 12, "|                                    |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 13, "| WE USE ESSENTIAL COOKIES TO        |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 14, "| REMEMBER YOUR HIGH SCORE.          |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 15, "|                                    |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 16, "| [A] ACCEPT ALL                     |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 17, "| [START] ALSO ACCEPT ALL            |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 18, "|                                    |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 19, "| *YOUR CHOICE IS VERY IMPORTANT     |", kFontTile);
-    vdp::writeText(memory_, vdp::kPlaneA, 1, 20, "+------------------------------------+", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 7, "+------------------------------------+", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 8, "|        COOKIE CONSENT              |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 9, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 10, "| THIS GAME WAS MADE IN THE          |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 11, "| EUROPEAN UNION.                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 12, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 13, "| WE USE ESSENTIAL COOKIES TO        |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 14, "| REMEMBER YOUR HIGH SCORE.          |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 15, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 16, "| [A] ACCEPT ALL                     |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 17, "| [START] ALSO ACCEPT ALL            |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 18, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 19, "| *YOUR CHOICE IS VERY IMPORTANT     |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 20, "+------------------------------------+", kFontTile);
 
     // An empty sprite list keeps the world hidden while consent blocks play.
-    vdp::writeSprite(memory_, 0, -32, -32, 1, 1, 0, 0, 0);
+    vdp::writeSprite(0, -32, -32, 1, 1, 0, 0, 0);
 }
 
 void SampleGame::clearCookieBanner() {
     for (int row = kCookieBannerFirstRow; row <= kCookieBannerLastRow; ++row) {
-        vdp::writeText(memory_, vdp::kPlaneA, 0, row, kBlankScreenRow, kFontTile);
+        vdp::writeText(vdp::kPlaneA, 0, row, kBlankScreenRow, kFontTile);
     }
 }
 

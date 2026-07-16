@@ -21,116 +21,112 @@ std::uint16_t commandWord2(std::uint8_t code, std::uint16_t address) {
     return static_cast<std::uint16_t>(((code & 0x3Cu) << 2) | ((address >> 14) & 0x03u));
 }
 
-void clearVram(memory::Memory &memory) {
-    setVramWrite(memory, 0);
+void clearVram() {
+    setVramWrite(0);
     for (std::uint32_t word = 0; word < 32768; ++word) {
-        memory.write16(kDataPort, 0);
+        memory::write16(kDataPort, 0);
     }
 }
 
 } // namespace
 
-void writeRegister(memory::Memory &memory, std::uint8_t reg, std::uint8_t value) {
-    memory.write16(kControlPort, static_cast<std::uint16_t>(0x8000u | (reg << 8) | value));
+void writeRegister(std::uint8_t reg, std::uint8_t value) {
+    memory::write16(kControlPort, static_cast<std::uint16_t>(0x8000u | (reg << 8) | value));
 }
 
-void setVramWrite(memory::Memory &memory, std::uint16_t address) {
-    memory.write16(kControlPort, commandWord1(kVramWrite, address));
-    memory.write16(kControlPort, commandWord2(kVramWrite, address));
+void setVramWrite(std::uint16_t address) {
+    memory::write16(kControlPort, commandWord1(kVramWrite, address));
+    memory::write16(kControlPort, commandWord2(kVramWrite, address));
 }
 
-void setCramWrite(memory::Memory &memory, std::uint16_t address) {
-    memory.write16(kControlPort, commandWord1(kCramWrite, address));
-    memory.write16(kControlPort, commandWord2(kCramWrite, address));
+void setCramWrite(std::uint16_t address) {
+    memory::write16(kControlPort, commandWord1(kCramWrite, address));
+    memory::write16(kControlPort, commandWord2(kCramWrite, address));
 }
 
-void initialize(memory::Memory &memory) {
+void initialize() {
     // Configure both targets exactly like the physical VDP. The display stays
     // disabled while tables are populated. H/V interrupt callbacks drive the
     // shared game once initialization has completed.
-    writeRegister(memory, 0x00, 0x14); // full CRAM palette + HBlank IRQ
-    writeRegister(memory, 0x01, 0x14); // display disabled, DMA, Mode 5
-    writeRegister(memory, 0x02, 0x30); // Plane A at 0xC000
-    writeRegister(memory, 0x03, 0x2C); // Window at 0xB000
-    writeRegister(memory, 0x04, 0x07); // Plane B at 0xE000
-    writeRegister(memory, 0x05, 0x68); // sprite table at 0xD000
-    writeRegister(memory, 0x07, 0x00); // backdrop palette 0, color 0
-    writeRegister(memory, 0x0A, kHSyncLineBatch - 1); // HBlank IRQ every sixteen scanlines
-    writeRegister(memory, 0x0B, 0x03); // per-scanline horizontal scrolling
-    writeRegister(memory, 0x0C, 0x81); // H40 (320 pixels), non-interlaced
-    writeRegister(memory, 0x0D, 0x3C); // HScroll table at 0xF000
-    writeRegister(memory, 0x0F, 0x02); // auto-increment by one word
-    writeRegister(memory, 0x10, 0x01); // planes are 64 x 32 cells
-    writeRegister(memory, 0x11, 0x00);
-    writeRegister(memory, 0x12, 0x00);
+    writeRegister(0x00, 0x14); // full CRAM palette + HBlank IRQ
+    writeRegister(0x01, 0x14); // display disabled, DMA, Mode 5
+    writeRegister(0x02, 0x30); // Plane A at 0xC000
+    writeRegister(0x03, 0x2C); // Window at 0xB000
+    writeRegister(0x04, 0x07); // Plane B at 0xE000
+    writeRegister(0x05, 0x68); // sprite table at 0xD000
+    writeRegister(0x07, 0x00); // backdrop palette 0, color 0
+    writeRegister(0x0A, kHSyncLineBatch - 1); // HBlank IRQ every sixteen scanlines
+    writeRegister(0x0B, 0x03); // per-scanline horizontal scrolling
+    writeRegister(0x0C, 0x81); // H40 (320 pixels), non-interlaced
+    writeRegister(0x0D, 0x3C); // HScroll table at 0xF000
+    writeRegister(0x0F, 0x02); // auto-increment by one word
+    writeRegister(0x10, 0x01); // planes are 64 x 32 cells
+    writeRegister(0x11, 0x00);
+    writeRegister(0x12, 0x00);
 
-    clearVram(memory);
+    clearVram();
 
     // VRAM was cleared above, so every per-scanline scroll pair starts at zero.
 }
 
-void finishInitialization(memory::Memory &memory) {
-    writeRegister(memory, 0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
+void finishInitialization() {
+    writeRegister(0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
 }
 
-void beginHorizontalScrollLines(memory::Memory &memory, int firstScanline) {
+void beginHorizontalScrollLines(int firstScanline) {
     const auto address = static_cast<std::uint16_t>(kHScrollTable + firstScanline * 4);
-    setVramWrite(memory, address);
+    setVramWrite(address);
 }
 
-void appendHorizontalScrollLine(memory::Memory &memory,
-                                std::uint16_t planeA,
+void appendHorizontalScrollLine(std::uint16_t planeA,
                                 std::uint16_t planeB) {
-    memory.write16(kDataPort, planeA);
-    memory.write16(kDataPort, planeB);
+    memory::write16(kDataPort, planeA);
+    memory::write16(kDataPort, planeB);
 }
 
-void loadPalette(memory::Memory &memory, std::uint8_t palette, const std::uint16_t (&colors)[16]) {
-    setCramWrite(memory, static_cast<std::uint16_t>(palette * 32));
+void loadPalette(std::uint8_t palette, const std::uint16_t (&colors)[16]) {
+    setCramWrite(static_cast<std::uint16_t>(palette * 32));
     for (const auto color : colors) {
-        memory.write16(kDataPort, color);
+        memory::write16(kDataPort, color);
     }
 }
 
-void loadTilesFromRom(memory::Memory &memory,
-                      std::uint32_t romAddress,
+void loadTilesFromRom(std::uint32_t romAddress,
                       std::uint16_t firstVramTile,
                       std::uint16_t tileCount) {
-    setVramWrite(memory, static_cast<std::uint16_t>(firstVramTile * 32));
+    setVramWrite(static_cast<std::uint16_t>(firstVramTile * 32));
     // One 8x8 4-bpp tile is 32 bytes, or 16 big-endian words.
     const auto wordCount = static_cast<std::uint32_t>(tileCount) * 16;
     for (std::uint32_t word = 0; word < wordCount; ++word) {
-        memory.write16(kDataPort, memory.read16(romAddress + word * 2));
+        memory::write16(kDataPort, memory::read16(romAddress + word * 2));
     }
 }
 
-void dmaToVram(memory::Memory &memory,
-               memory::Address sourceAddress,
+void dmaToVram(memory::Address sourceAddress,
                std::uint16_t destinationAddress,
                std::uint16_t wordCount) {
-    const auto sourceWord = memory::Memory::normalize(sourceAddress) >> 1;
-    writeRegister(memory, 0x13, static_cast<std::uint8_t>(wordCount & 0xFFu));
-    writeRegister(memory, 0x14, static_cast<std::uint8_t>(wordCount >> 8));
-    writeRegister(memory, 0x15, static_cast<std::uint8_t>(sourceWord & 0xFFu));
-    writeRegister(memory, 0x16, static_cast<std::uint8_t>((sourceWord >> 8) & 0xFFu));
+    const auto sourceWord = memory::normalize(sourceAddress) >> 1;
+    writeRegister(0x13, static_cast<std::uint8_t>(wordCount & 0xFFu));
+    writeRegister(0x14, static_cast<std::uint8_t>(wordCount >> 8));
+    writeRegister(0x15, static_cast<std::uint8_t>(sourceWord & 0xFFu));
+    writeRegister(0x16, static_cast<std::uint8_t>((sourceWord >> 8) & 0xFFu));
     // Bit 7 clear selects a 68000-bus copy; bit 6 remains part of the source
     // bank, allowing the $FFxxxx Work RAM mirror used by the demo.
-    writeRegister(memory, 0x17, static_cast<std::uint8_t>((sourceWord >> 16) & 0x7Fu));
+    writeRegister(0x17, static_cast<std::uint8_t>((sourceWord >> 16) & 0x7Fu));
 
     constexpr std::uint8_t kVramDmaWrite = kVramWrite | 0x20;
-    memory.write16(kControlPort, commandWord1(kVramDmaWrite, destinationAddress));
-    memory.write16(kControlPort, commandWord2(kVramDmaWrite, destinationAddress));
+    memory::write16(kControlPort, commandWord1(kVramDmaWrite, destinationAddress));
+    memory::write16(kControlPort, commandWord2(kVramDmaWrite, destinationAddress));
 }
 
-void fillPlane(memory::Memory &memory, std::uint16_t planeBase, std::uint16_t descriptor) {
-    setVramWrite(memory, planeBase);
+void fillPlane(std::uint16_t planeBase, std::uint16_t descriptor) {
+    setVramWrite(planeBase);
     for (int cell = 0; cell < kPlaneWidth * kPlaneHeight; ++cell) {
-        memory.write16(kDataPort, descriptor);
+        memory::write16(kDataPort, descriptor);
     }
 }
 
-void fillPlaneArea(memory::Memory &memory,
-                   std::uint16_t planeBase,
+void fillPlaneArea(std::uint16_t planeBase,
                    int column,
                    int row,
                    int width,
@@ -139,26 +135,24 @@ void fillPlaneArea(memory::Memory &memory,
     for (int areaRow = 0; areaRow < height; ++areaRow) {
         const auto address = static_cast<std::uint16_t>(
             planeBase + ((row + areaRow) * kPlaneWidth + column) * 2);
-        setVramWrite(memory, address);
+        setVramWrite(address);
         for (int areaColumn = 0; areaColumn < width; ++areaColumn) {
-            memory.write16(kDataPort, descriptor);
+            memory::write16(kDataPort, descriptor);
         }
     }
 }
 
-void writePlaneTile(memory::Memory &memory,
-                    std::uint16_t planeBase,
+void writePlaneTile(std::uint16_t planeBase,
                     int column,
                     int row,
                     std::uint16_t descriptor) {
     // Plane name tables are row-major arrays of 16-bit descriptors.
     const auto address = static_cast<std::uint16_t>(planeBase + (row * kPlaneWidth + column) * 2);
-    setVramWrite(memory, address);
-    memory.write16(kDataPort, descriptor);
+    setVramWrite(address);
+    memory::write16(kDataPort, descriptor);
 }
 
-void writeText(memory::Memory &memory,
-               std::uint16_t planeBase,
+void writeText(std::uint16_t planeBase,
                int column,
                int row,
                const char *text,
@@ -169,12 +163,11 @@ void writeText(memory::Memory &memory,
         const auto tile = glyph >= 0x20 && glyph <= 0x7E
                               ? static_cast<std::uint16_t>(firstFontTile + glyph - 0x20)
                               : 0;
-        writePlaneTile(memory, planeBase, column++, row, tileDescriptor(tile, palette, true));
+        writePlaneTile(planeBase, column++, row, tileDescriptor(tile, palette, true));
     }
 }
 
-void writeSprite(memory::Memory &memory,
-                 int spriteIndex,
+void writeSprite(int spriteIndex,
                  int x,
                  int y,
                  int widthInTiles,
@@ -184,15 +177,15 @@ void writeSprite(memory::Memory &memory,
                  int nextSprite) {
     // Hardware coordinates are biased by 128 so off-screen negative positions
     // remain representable in the nine-bit SAT fields.
-    setVramWrite(memory, static_cast<std::uint16_t>(kSpriteTable + spriteIndex * 8));
-    memory.write16(kDataPort, static_cast<std::uint16_t>((y + 128) & 0x01FF));
+    setVramWrite(static_cast<std::uint16_t>(kSpriteTable + spriteIndex * 8));
+    memory::write16(kDataPort, static_cast<std::uint16_t>((y + 128) & 0x01FF));
 
     const auto width = static_cast<std::uint8_t>((widthInTiles - 1) & 3);
     const auto height = static_cast<std::uint8_t>((heightInTiles - 1) & 3);
-    memory.write16(kDataPort,
+    memory::write16(kDataPort,
                    static_cast<std::uint16_t>(((width << 2) | height) << 8 | (nextSprite & 0x7F)));
-    memory.write16(kDataPort, tileDescriptor(firstTile, palette, true));
-    memory.write16(kDataPort, static_cast<std::uint16_t>((x + 128) & 0x01FF));
+    memory::write16(kDataPort, tileDescriptor(firstTile, palette, true));
+    memory::write16(kDataPort, static_cast<std::uint16_t>((x + 128) & 0x01FF));
 }
 
 } // namespace sample::vdp

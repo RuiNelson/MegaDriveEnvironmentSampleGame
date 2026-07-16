@@ -25,12 +25,11 @@ enum class RotationAxis : std::uint8_t {
  * Owns the fixed-point simulation and software tile renderer for the demo.
  *
  * The class has no platform-specific paths. Pixels are packed into native VDP
- * tiles and sent through memory::Memory on both PC and real Mega Drive hardware.
+ * tiles and sent through sample::memory on both PC and real Mega Drive hardware.
  */
 class BoingBallDemo final {
   public:
-    /** Retains `memory` by reference; the backend must outlive the demo. */
-    explicit BoingBallDemo(memory::Memory &memory);
+    BoingBallDemo() = default;
 
     /** Detects 50/60 Hz and uploads the software-generated background patterns. */
     void initialize();
@@ -66,7 +65,7 @@ class BoingBallDemo final {
     /** Uses the remaining display period without crossing the next VBlank. */
     void rasterizeBallUntilBudget();
 
-    /** Reads the VDP beam position through memory::Memory to protect VBlank cadence. */
+    /** Reads the VDP beam position through sample::memory to protect VBlank cadence. */
     [[nodiscard]] bool videoBudgetExpired() const;
 
     /** Applies a new size while preserving the ball centre. */
@@ -84,7 +83,6 @@ class BoingBallDemo final {
     /** Replaces the numeric part of the static FPS label. */
     void renderFps();
 
-    memory::Memory &memory_;
     /** Output coordinate to unique 128x128 geometry coordinate; $FF is transparent. */
     std::uint8_t sourceCoordinate_[kMaximumBallSize];
     /** Direct palette result for every packed geometry byte used by the sphere. */

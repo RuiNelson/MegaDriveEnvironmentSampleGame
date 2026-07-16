@@ -1,6 +1,6 @@
 /**
  * @file Memory-MD.cpp
- * Inline volatile access to the real 68000 address bus.
+ * Inline volatile free-function access to the real 68000 address bus.
  *
  * The ROM builder includes this file first in its generated translation unit,
  * making every definition visible before the shared game sources use it.
@@ -29,27 +29,27 @@ template <typename Value>
 
 } // namespace
 
-SAMPLE_MEMORY_MD_ALWAYS_INLINE std::uint8_t Memory::read8(Address address) const noexcept {
+SAMPLE_MEMORY_MD_ALWAYS_INLINE std::uint8_t read8(Address address) noexcept {
     return bus<std::uint8_t>(address);
 }
 
-SAMPLE_MEMORY_MD_ALWAYS_INLINE std::uint16_t Memory::read16(Address address) const noexcept {
+SAMPLE_MEMORY_MD_ALWAYS_INLINE std::uint16_t read16(Address address) noexcept {
     return bus<std::uint16_t>(address);
 }
 
-SAMPLE_MEMORY_MD_ALWAYS_INLINE std::uint32_t Memory::read32(Address address) const noexcept {
+SAMPLE_MEMORY_MD_ALWAYS_INLINE std::uint32_t read32(Address address) noexcept {
     return bus<std::uint32_t>(address);
 }
 
-SAMPLE_MEMORY_MD_ALWAYS_INLINE void Memory::write8(Address address, std::uint8_t value) const noexcept {
+SAMPLE_MEMORY_MD_ALWAYS_INLINE void write8(Address address, std::uint8_t value) noexcept {
     bus<std::uint8_t>(address) = value;
 }
 
-SAMPLE_MEMORY_MD_ALWAYS_INLINE void Memory::write16(Address address, std::uint16_t value) const noexcept {
+SAMPLE_MEMORY_MD_ALWAYS_INLINE void write16(Address address, std::uint16_t value) noexcept {
     bus<std::uint16_t>(address) = value;
 }
 
-SAMPLE_MEMORY_MD_ALWAYS_INLINE void Memory::write32(Address address, std::uint32_t value) const noexcept {
+SAMPLE_MEMORY_MD_ALWAYS_INLINE void write32(Address address, std::uint32_t value) noexcept {
     bus<std::uint32_t>(address) = value;
 }
 

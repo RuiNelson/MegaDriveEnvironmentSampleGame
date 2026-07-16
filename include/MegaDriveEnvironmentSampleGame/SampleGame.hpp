@@ -17,14 +17,13 @@ namespace sample {
 /**
  * Owns the entire game, including input, simulation, sound and VDP rendering.
  *
- * All hardware communication goes through memory::Memory. The exact same class
- * and implementation are therefore compiled for MegaDriveEnvironment and for
- * real hardware; only the injected Memory implementation changes.
+ * All hardware communication goes through sample::memory free functions. The
+ * exact same class is compiled for MegaDriveEnvironment and real hardware;
+ * only the bound memory backend changes on PC.
  */
 class SampleGame final {
   public:
-    /** Retains `memory` by reference; the backend must outlive the game. */
-    explicit SampleGame(memory::Memory &memory);
+    SampleGame();
 
     /** Configures the controller, PSG, Z80 FM demo driver, VDP and initial scene. */
     void initialize();
@@ -71,8 +70,6 @@ class SampleGame final {
     /** Writes one contiguous block of Plane B per-scanline wave offsets. */
     void writeBackgroundWaveBlock(int firstScanline);
 
-    /** Shared bus used for ROM, controller, audio and VDP accesses. */
-    memory::Memory &memory_;
     /** Memory-mapped three-button controller decoder. */
     controllers::ControllerReader player1Controller_;
     /** Platform-independent entities, scoring, collision and phase state. */

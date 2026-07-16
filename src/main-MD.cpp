@@ -143,11 +143,11 @@ extern "C" void game_hsync() {
  * set (`$FFFFFC`), interrupts are masked, and TMSS (if present) has been
  * unlocked. Startup sequence:
  *
- * 1. Construct target-specific `PlatformMemory` (direct 68000 bus accessors).
- * 2. Construct the shared `SampleGame` on the supervisor stack.
- * 3. Publish the game pointer for IRQ handlers.
- * 4. Run one-shot hardware/game initialization (controllers, audio, VDP, scene).
- * 5. Sleep forever via `wait_for_interrupt()`; all further work is IRQ-driven.
+ * 1. Construct the shared `SampleGame` on the supervisor stack (bus access is
+ *    direct via sample::memory free functions; no Memory object is needed).
+ * 2. Publish the game pointer for IRQ handlers.
+ * 3. Run one-shot hardware/game initialization (controllers, audio, VDP, scene).
+ * 4. Sleep forever via `wait_for_interrupt()`; all further work is IRQ-driven.
  *
  * Marked `[[noreturn]]` because the infinite STOP loop is the intended
  * lifetime of a cartridge program. A trailing branch in the assembler also
@@ -155,8 +155,7 @@ extern "C" void game_hsync() {
  */
 extern "C" [[noreturn]] void game_main() {
     // header.s transfers control here after setting the stack and hardware.
-    sample::platform::PlatformMemory memory;
-    sample::SampleGame game{memory};
+    sample::SampleGame game;
     setActiveGame(&game);
     game.initialize();
 

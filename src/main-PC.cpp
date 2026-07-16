@@ -11,7 +11,7 @@
  * | Concern            | PC (`main-PC.cpp`)              | Mega Drive (`main-MD.cpp`)      |
  * | ------------------ | ------------------------------- | ------------------------------- |
  * | Process entry      | `main(argc, argv)`              | `game_main()` via `header.s`    |
- * | Memory backend     | `PlatformMemory` → SystemMemory | Direct 68000 bus (`Memory-MD`)  |
+ * | Memory backend     | `memory::bind(SystemMemory)`    | Direct 68000 bus (`Memory-MD`)  |
  * | VBlank callback    | `EnvironmentApplication::vSync` | `game_vsync` → IRQ6             |
  * | HBlank callback    | `EnvironmentApplication::hSync` | `game_hsync` → IRQ4             |
  * | Main loop          | `run()` + `runVDPInterrupts()`  | `wait_for_interrupt()` STOP loop|
@@ -87,9 +87,13 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
     EnvironmentApplication(std::string romPath, unsigned frameLimit)
         : MegaDriveEnvironment(VDP::InternalTimer, VDP::Integer),
           romPath_(std::move(romPath)),
-          frameLimit_(frameLimit),
-          gameMemory_(memory()),
-          game_(gameMemory_) {
+          frameLimit_(frameLimit) {
+        // Route all sample::memory free functions through the environment map.
+        sample::memory::bind(memory());
+    }
+
+    ~EnvironmentApplication() override {
+        sample::memory::unbind();
     }
 
   private:
@@ -157,11 +161,6 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
     unsigned frameCount_ = 0;
     /** Sticky flag set when `frameCount_` reaches `frameLimit_`. */
     bool frameLimitReached_ = false;
-    /**
-     * PC memory backend wrapping the environment's `SystemMemory`.
-     * Must outlive `game_` (constructed after this member).
-     */
-    sample::platform::PlatformMemory gameMemory_;
     /** Shared game instance; identical class to the Mega Drive stack object. */
     sample::SampleGame game_;
 };

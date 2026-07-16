@@ -2,9 +2,9 @@
 
 ## Bus access and object storage are different
 
-`memory::Memory` represents the Mega Drive address bus. A call such as
-`write16(0xC00004, value)` communicates with mapped hardware; it does not
-allocate or own C++ storage.
+`sample::memory` free functions represent the Mega Drive address bus. A call
+such as `memory::write16(0xC00004, value)` communicates with mapped hardware;
+it does not allocate or own C++ storage.
 
 Object storage decides where mutable state and temporary buffers live. On real
 hardware, the 68000 has only 64 KiB of Work RAM at `$FF0000-$FFFFFF`. The stack,
@@ -58,8 +58,8 @@ out-of-memory behavior, reset rules and relationship with the stack.
 
 Shared C++ uses the native host stack on PC, not the environment's emulated
 64 KiB Work RAM. A large local buffer, recursion or deep call chain can work on
-PC and still overflow on M68000 hardware. `memory::Memory` cannot make the two
-ABIs share stack size or frame layout.
+PC and still overflow on M68000 hardware. The free-function bus API cannot make
+the two ABIs share stack size or frame layout.
 
 Explicit arenas and pools can enforce identical capacities on both targets.
 Stack safety must additionally be checked from the M68k build by budgeting

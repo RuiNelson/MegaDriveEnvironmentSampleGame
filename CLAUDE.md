@@ -56,8 +56,8 @@ cmake -S . -B build \
 - Drive the shared game through VBlank and HBlank callbacks: the PC entry point
   overrides `vSync()`/`hSync()`, while the real-hardware IRQ6/IRQ4 handlers
   forward to the same `SampleGame` methods.
-- All runtime hardware access from shared game code must go through
-  `memory::Memory`.
+- All runtime hardware access from shared game code must go through the
+  free functions in `sample::memory` (`read8`/`write16`/…).
 - Keep public headers flat under `include/MegaDriveEnvironmentSampleGame/` and
   implementations flat under `src/`. Shared files have plain names; source
   files that only build for one target use the `-PC` or `-MD` suffix.
@@ -65,8 +65,9 @@ cmake -S . -B build \
   files. Both CMake and the M68k ROM builder read it.
 - Build shared C++ with exactly one target definition: `PC` for
   MegaDriveEnvironment or `MEGADRIVE` for real hardware.
-- Keep `Memory.hpp` as the single memory API and target declarations. Its two
-  implementations are `src/Memory-PC.cpp` and `src/Memory-MD.cpp`.
+- Keep `Memory.hpp` as the single free-function memory API. Its two
+  implementations are `src/Memory-PC.cpp` (bound backend) and
+  `src/Memory-MD.cpp` (direct bus).
 - Controller code must use `ControllerReader` and memory-mapped I/O,
   not SDL or `Controllers::getCurrentState()` directly.
 - Keep command-line processing dependency-free; extend the manual parser in
@@ -86,7 +87,7 @@ cmake -S . -B build \
   The ROM build compiles shared C++ with `-Os -flto` and links through the GCC
   driver. `code.o`, `code.disasm`, and `blobs.s` are generated build artifacts
   and must not be committed.
-- Never execute the `MEGADRIVE` branch of `Memory.hpp` on the
+- Never execute the `MEGADRIVE` implementation of `sample::memory` on the
   host; it dereferences the real 68000 address map directly.
 - Keep the shared game allocation-free. The real-hardware build intentionally
   provides no `operator new/delete`, so use automatic or embedded

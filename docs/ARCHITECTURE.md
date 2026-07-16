@@ -65,13 +65,13 @@ loop or renderer.
 
 ## The memory boundary
 
-Shared code receives `memory::Memory`. Words and long words are big-endian and
-addresses are normalized to the 24-bit bus.
+Shared code calls free functions in `sample::memory`. Words and long words are
+big-endian and addresses are normalized to the 24-bit bus.
 
-On PC, `PlatformMemory` delegates to the environment's thread-safe
-`SystemMemory`. On hardware, `PlatformMemory` is an alias for a stateless type
-whose volatile accessors are forced inline. Never execute the `MEGADRIVE`
-backend on a host: it dereferences physical bus addresses directly.
+On PC, `memory::bind(SystemMemory&)` (or a test `Backend`) routes those calls
+to the environment's thread-safe map. On hardware, the same functions are
+always-inlined volatile bus accesses. Never execute the `MEGADRIVE`
+implementation on a host: it dereferences physical bus addresses directly.
 
 See [Memory model](MEMORY_MODEL.md) before adding buffers, pools or recursion.
 

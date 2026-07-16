@@ -12,15 +12,14 @@ namespace sample::audio {
 /**
  * Plays the sample game's short effects through the Mega Drive PSG port.
  *
- * The class writes bytes to address $C00011 through memory::Memory. The same
+ * The class writes bytes to address $C00011 through sample::memory. The same
  * memory-mapped path is valid on every target that exposes the Mega Drive map.
  * Call update() exactly once per game frame so effect durations remain
  * deterministic.
  */
 class PsgSoundEffects final {
   public:
-    /** Stores a non-owning reference to the target's memory bus. */
-    explicit PsgSoundEffects(memory::Memory &memory);
+    PsgSoundEffects() = default;
 
     /** Silences every PSG channel and resets the active sequence. */
     void initialize();
@@ -65,8 +64,6 @@ class PsgSoundEffects final {
     /** Mutes all four channels and marks the sequencer idle. */
     void silence();
 
-    /** Target bus; must outlive this object. */
-    memory::Memory &memory_;
     /** Sequence whose frame transitions update() currently executes. */
     Effect effect_ = Effect::None;
     /** Zero-based elapsed-frame counter for effect_. */

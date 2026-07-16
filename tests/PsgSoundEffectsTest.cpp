@@ -5,40 +5,66 @@
 
 namespace {
 
-class RecordingMemory final : public sample::memory::Memory {
-  public:
-    std::uint8_t read8(sample::memory::Address) override {
+struct RecordingMemory {
+    std::uint8_t read8(sample::memory::Address) {
         return 0;
     }
 
-    std::uint16_t read16(sample::memory::Address) override {
+    std::uint16_t read16(sample::memory::Address) {
         return 0;
     }
 
-    std::uint32_t read32(sample::memory::Address) override {
+    std::uint32_t read32(sample::memory::Address) {
         return 0;
     }
 
-    void write8(sample::memory::Address address, std::uint8_t value) override {
+    void write8(sample::memory::Address address, std::uint8_t value) {
         assert(address == 0xC00011);
         writes[writeCount++] = value;
     }
 
-    void write16(sample::memory::Address, std::uint16_t) override {
+    void write16(sample::memory::Address, std::uint16_t) {
     }
 
-    void write32(sample::memory::Address, std::uint32_t) override {
+    void write32(sample::memory::Address, std::uint32_t) {
     }
 
     std::array<std::uint8_t, 128> writes{};
     std::size_t writeCount = 0;
 };
 
+template <typename T>
+sample::memory::Backend makeBackend(T *self) {
+    using sample::memory::Address;
+    return sample::memory::Backend{
+        [](void *ctx, Address address) -> std::uint8_t {
+            return static_cast<T *>(ctx)->read8(address);
+        },
+        [](void *ctx, Address address) -> std::uint16_t {
+            return static_cast<T *>(ctx)->read16(address);
+        },
+        [](void *ctx, Address address) -> std::uint32_t {
+            return static_cast<T *>(ctx)->read32(address);
+        },
+        [](void *ctx, Address address, std::uint8_t value) {
+            static_cast<T *>(ctx)->write8(address, value);
+        },
+        [](void *ctx, Address address, std::uint16_t value) {
+            static_cast<T *>(ctx)->write16(address, value);
+        },
+        [](void *ctx, Address address, std::uint32_t value) {
+            static_cast<T *>(ctx)->write32(address, value);
+        },
+        self,
+    };
+}
+
 } // namespace
 
 int main() {
     RecordingMemory memory;
-    sample::audio::PsgSoundEffects sounds(memory);
+    sample::memory::bind(makeBackend(&memory));
+    sample::audio::PsgSoundEffects sounds;
 
     sounds.initialize();
     assert(memory.writeCount == 4);
@@ -73,5 +99,6 @@ int main() {
     assert(memory.writes[wallStart - 4] == 0xFF);
     assert((memory.writes[wallStart - 3] & 0xF0) == 0x80);
     assert((memory.writes[wallStart - 1] & 0xF0) == 0x90);
+    sample::memory::unbind();
     return 0;
 }

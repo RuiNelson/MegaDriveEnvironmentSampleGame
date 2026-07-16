@@ -18,9 +18,11 @@ function(sample_add_cpp_test target source library)
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
 
+# sample_memory_pc carries the free-function bus implementation and pulls in
+# sample_game; unit tests that touch hardware paths must link it.
 sample_add_cpp_test(sample_memory_test tests/MemoryTest.cpp sample_memory_pc)
-sample_add_cpp_test(sample_controller_reader_test tests/ControllerReaderTest.cpp sample_game)
+sample_add_cpp_test(sample_controller_reader_test tests/ControllerReaderTest.cpp sample_memory_pc)
 sample_add_cpp_test(sample_game_session_test tests/GameSessionTest.cpp sample_game)
-sample_add_cpp_test(sample_boing_ball_demo_test tests/BoingBallDemoTest.cpp sample_game)
-sample_add_cpp_test(sample_psg_sound_effects_test tests/PsgSoundEffectsTest.cpp sample_game)
-sample_add_cpp_test(sample_boing_ball_fm_sfx_test tests/BoingBallFmSfxTest.cpp sample_game)
+sample_add_cpp_test(sample_boing_ball_demo_test tests/BoingBallDemoTest.cpp sample_memory_pc)
+sample_add_cpp_test(sample_psg_sound_effects_test tests/PsgSoundEffectsTest.cpp sample_memory_pc)
+sample_add_cpp_test(sample_boing_ball_fm_sfx_test tests/BoingBallFmSfxTest.cpp sample_memory_pc)

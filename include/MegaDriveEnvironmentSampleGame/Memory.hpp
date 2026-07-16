@@ -2,7 +2,16 @@
 
 /**
  * @file Memory.hpp
- * Target-neutral access to the Mega Drive's 24-bit memory map.
+ * Target-neutral free-function access to the Mega Drive's 24-bit memory map.
+ *
+ * Shared game code calls sample::memory::read8 / write16 / etc. with 68000 bus addresses.
+ * There is no Memory object and no virtual dispatch:
+ *
+ * - MEGADRIVE: each call is an always-inlined volatile bus access.
+ * - PC: calls forward to a bound backend (SystemMemory, or a test double).
+ *
+ * Words and long words use big-endian order. Keep 16/32-bit accesses
+ * word-aligned, as on real hardware.
  */
 
 #include "MegaDriveEnvironmentSampleGame/StdCompat.hpp"
@@ -13,108 +22,56 @@ class SystemMemory;
 
 namespace sample::memory {
 
-#if defined(MEGADRIVE)
-#if defined(__GNUC__) || defined(__clang__)
-#define SAMPLE_MEMORY_ALWAYS_INLINE inline __attribute__((always_inline))
-#else
-#define SAMPLE_MEMORY_ALWAYS_INLINE inline
-#endif
-#endif
-
 using Address = std::uint32_t;
 
+/** Folds an integer address onto the 68000's 24-bit external bus. */
+[[nodiscard]] constexpr Address normalize(Address address) noexcept {
+    return address & 0x00FF'FFFF;
+}
+
 /**
- * Common 68000 memory contract used by every game target.
- *
- * Addresses are normalized to the Mega Drive's 24-bit address bus. Words and
- * long words use the 68000's native big-endian byte order. Callers must keep
- * 16-bit and 32-bit accesses word-aligned, just as they must on real hardware.
+ * One bus read. Multi-byte values use 68000 big-endian order.
+ * Implementations preserve device side effects at mapped I/O ports.
  */
-class Memory {
-  public:
-#if defined(MEGADRIVE)
-    /** Bare-metal memory has no runtime state or virtual dispatch table. */
-    Memory() noexcept = default;
-    ~Memory() = default;
-#else
-    virtual ~Memory() = default;
-#endif
+[[nodiscard]] std::uint8_t read8(Address address) noexcept;
+[[nodiscard]] std::uint16_t read16(Address address) noexcept;
+[[nodiscard]] std::uint32_t read32(Address address) noexcept;
 
-    Memory(const Memory &) = delete;
-    Memory &operator=(const Memory &) = delete;
-
-    /**
-     * Performs one bus read. Multi-byte values use 68000 big-endian order.
-     * Implementations preserve device side effects at mapped I/O ports.
-     */
-#if defined(MEGADRIVE)
-    SAMPLE_MEMORY_ALWAYS_INLINE std::uint8_t read8(Address address) const noexcept;
-    SAMPLE_MEMORY_ALWAYS_INLINE std::uint16_t read16(Address address) const noexcept;
-    SAMPLE_MEMORY_ALWAYS_INLINE std::uint32_t read32(Address address) const noexcept;
-#else
-    virtual std::uint8_t read8(Address address) = 0;
-    virtual std::uint16_t read16(Address address) = 0;
-    virtual std::uint32_t read32(Address address) = 0;
-#endif
-
-    /**
-     * Performs one bus write. Callers keep word and long-word addresses even,
-     * as required by a real 68000.
-     */
-#if defined(MEGADRIVE)
-    SAMPLE_MEMORY_ALWAYS_INLINE void write8(Address address, std::uint8_t value) const noexcept;
-    SAMPLE_MEMORY_ALWAYS_INLINE void write16(Address address, std::uint16_t value) const noexcept;
-    SAMPLE_MEMORY_ALWAYS_INLINE void write32(Address address, std::uint32_t value) const noexcept;
-#else
-    virtual void write8(Address address, std::uint8_t value) = 0;
-    virtual void write16(Address address, std::uint16_t value) = 0;
-    virtual void write32(Address address, std::uint32_t value) = 0;
-#endif
-
-    /** Folds an integer address onto the 68000's 24-bit external bus. */
-    [[nodiscard]] static constexpr Address normalize(Address address) {
-        return address & 0x00FF'FFFF;
-    }
+/**
+ * One bus write. Callers keep word and long-word addresses even, as required
+ * by a real 68000.
+ */
+void write8(Address address, std::uint8_t value) noexcept;
+void write16(Address address, std::uint16_t value) noexcept;
+void write32(Address address, std::uint32_t value) noexcept;
 
 #if defined(PC)
-  protected:
-    /** Only concrete target backends can construct the abstraction. */
-    Memory() = default;
-#endif
+
+/**
+ * Function-table bus backend for the PC target.
+ *
+ * Production code binds SystemMemory via bind(SystemMemory&). Unit tests bind a
+ * RecordingMemory-style double by filling this table with thunks.
+ */
+struct Backend {
+    std::uint8_t (*read8)(void *context, Address address);
+    std::uint16_t (*read16)(void *context, Address address);
+    std::uint32_t (*read32)(void *context, Address address);
+    void (*write8)(void *context, Address address, std::uint8_t value);
+    void (*write16)(void *context, Address address, std::uint16_t value);
+    void (*write32)(void *context, Address address, std::uint32_t value);
+    void *context;
 };
 
-#if defined(MEGADRIVE)
-#undef SAMPLE_MEMORY_ALWAYS_INLINE
+/** Installs @p backend as the target of all subsequent bus read and write calls. */
+void bind(const Backend &backend) noexcept;
+
+/** Binds the environment SystemMemory map used by the PC executable. */
+void bind(SystemMemory &systemMemory) noexcept;
+
+/** Clears the bound backend; further bus access is undefined until bind(). */
+void unbind() noexcept;
+
 #endif
 
 } // namespace sample::memory
-
-namespace sample::platform {
-
-#if defined(MEGADRIVE)
-
-/** Zero-cost name for the stateless real-hardware memory implementation. */
-using PlatformMemory = memory::Memory;
-
-#else
-
-/** PC adapter from the common memory API to MegaDriveEnvironment. */
-class PlatformMemory final : public memory::Memory {
-  public:
-    explicit PlatformMemory(SystemMemory &memory) noexcept;
-
-    std::uint8_t read8(memory::Address address) noexcept override;
-    std::uint16_t read16(memory::Address address) noexcept override;
-    std::uint32_t read32(memory::Address address) noexcept override;
-
-    void write8(memory::Address address, std::uint8_t value) noexcept override;
-    void write16(memory::Address address, std::uint16_t value) noexcept override;
-    void write32(memory::Address address, std::uint32_t value) noexcept override;
-
-  private:
-    SystemMemory &memory_;
-};
-
-#endif
-
-} // namespace sample::platform

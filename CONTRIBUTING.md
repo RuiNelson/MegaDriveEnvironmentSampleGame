@@ -21,7 +21,7 @@ That command builds the PC target and runs all C++ and Python tests.
   implementations flat under `src/`.
 - Name target-only sources with `-PC` or `-MD`; leave shared sources unsuffixed.
 - Add every shared implementation to `config/shared_sources.json`.
-- Route runtime hardware access through `memory::Memory`.
+- Route runtime hardware access through `sample::memory` free functions.
 - Keep controller logic independent of SDL and host APIs.
 - Keep command-line parsing dependency-free in `src/main-PC.cpp`.
 - Use generated asset constants instead of hard-coded packed ROM offsets.

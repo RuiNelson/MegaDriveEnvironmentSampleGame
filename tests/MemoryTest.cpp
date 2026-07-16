@@ -7,13 +7,14 @@
 
 int main() {
     SystemMemory systemMemory;
-    sample::platform::PlatformMemory memory{systemMemory};
+    sample::memory::bind(systemMemory);
     constexpr sample::memory::Address base = 0xFF0000;
 
-    memory.write32(base, 0x12345678);
-    assert(memory.read8(base) == 0x12);
-    assert(memory.read16(base) == 0x1234);
-    assert(memory.read32(base) == 0x12345678);
+    sample::memory::write32(base, 0x12345678);
+    assert(sample::memory::read8(base) == 0x12);
+    assert(sample::memory::read16(base) == 0x1234);
+    assert(sample::memory::read32(base) == 0x12345678);
 
-    assert(sample::memory::Memory::normalize(0xFFFF0000u) == base);
+    assert(sample::memory::normalize(0xFFFF0000u) == base);
+    sample::memory::unbind();
 }
