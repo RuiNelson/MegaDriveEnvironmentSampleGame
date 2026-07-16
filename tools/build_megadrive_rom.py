@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from asset_pack import ROM_SIZE, AssetLayout
+from asset_pack import ROM_SIZE, AssetLayout, print_megadrive_rom_summary
 
 
 ROM_CHECKSUM_OFFSET = 0x18E
@@ -53,6 +53,18 @@ def write_checksum(rom_path: Path) -> int:
 
 def load_layout(path: Path) -> AssetLayout:
     return AssetLayout.from_json(json.loads(path.read_text(encoding="utf-8")))
+
+
+def parse_code_end_from_map(map_path: Path) -> int:
+    """Read the linker-assigned __code_end address from a GNU ld map file."""
+    for line in map_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        # Typical: "                0x00006b5a                        __code_end = ."
+        if "__code_end" not in line:
+            continue
+        for token in line.split():
+            if token.startswith("0x") or token.startswith("0X"):
+                return int(token, 16)
+    raise RuntimeError(f"__code_end not found in map file {map_path}")
 
 
 def validate_rom(rom_path: Path, asset_rom_path: Path, layout: AssetLayout) -> dict[str, int]:
@@ -393,15 +405,13 @@ def build(args: argparse.Namespace) -> None:
 
     checksum = write_checksum(output_rom)
     details = validate_rom(output_rom, asset_rom, layout)
-    tiles = layout.blob("tiles")
-    z80 = layout.blob("z80_boing_ball_sfx")
+    code_end = parse_code_end_from_map(map_path)
     print(
         f"Wrote {output_rom}: {ROM_SIZE} bytes, checksum 0x{checksum:04X}, "
         f"reset 0x{details['reset_vector']:06X}, IRQ4/6 "
-        f"0x{details['hblank_vector']:06X}/0x{details['vblank_vector']:06X}, "
-        f"assets at 0x{details['pack_offset']:06X}-0x{ROM_SIZE - 1:06X} "
-        f"(z80={z80.size}, tiles={tiles.size})"
+        f"0x{details['hblank_vector']:06X}/0x{details['vblank_vector']:06X}"
     )
+    print_megadrive_rom_summary(layout, code_end=code_end)
     print(f"Assembly inputs: {repository / 'megadrive' / 'header.s'}")
     print(f"                 {code_assembly}")
     print(f"                 {blobs_assembly}")

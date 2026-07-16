@@ -21,6 +21,7 @@ from asset_pack import (
     ROM_SIZE,
     AssetBlob,
     pack_blobs,
+    print_asset_layout_summary,
     write_layout_header,
     write_layout_json,
     write_pack_binary,
@@ -179,20 +180,12 @@ def main() -> int:
         pack_binary=args.pack_binary.resolve(),
     )
 
-    tiles = layout.blob("tiles")
-    z80 = layout.blob("z80_boing_ball_sfx")
-    pcm = layout.blob("boing_pcm")
-    print(
-        f"Wrote {args.output}: {ROM_SIZE} bytes, "
-        f"pcm={pcm.size} @ 0x{pcm.offset:06X}, "
-        f"z80={z80.size} @ 0x{z80.offset:06X}, "
-        f"tiles={tiles.size} @ 0x{tiles.offset:06X}, "
-        f"pack=0x{layout.pack_offset:06X}-0x{ROM_SIZE - 1:06X}"
-    )
+    print(f"Wrote {args.output}")
     print(f"Wrote {args.layout_header}")
     print(f"Wrote {args.layout_json}")
-    print(f"Wrote {args.pack_binary} ({layout.pack_size} bytes)")
+    print(f"Wrote {args.pack_binary}")
     print(f"Assembled Z80 driver: {len(z80_binary)} bytes")
+    print_asset_layout_summary(layout, title="Asset ROM layout")
     return 0
 
 

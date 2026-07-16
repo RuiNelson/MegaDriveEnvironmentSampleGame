@@ -175,3 +175,81 @@ def write_pack_binary(image: bytes, layout: AssetLayout, path: Path) -> None:
     """Write only the packed tail used by the real-hardware .assets section."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(image[layout.pack_offset :])
+
+
+def format_byte_size(size: int) -> str:
+    """Human-readable size with hex, for build logs."""
+    if size >= 1024:
+        return f"{size} bytes (0x{size:X}, {size / 1024:.1f} KiB)"
+    return f"{size} bytes (0x{size:X})"
+
+
+def print_asset_layout_summary(layout: AssetLayout, *, title: str = "Asset pack") -> None:
+    """Print pack offset/size and each named blob."""
+    free_prefix = layout.pack_offset
+    print(f"{title}:")
+    print(f"  ROM size:              {format_byte_size(layout.rom_size)}")
+    print(f"  Free before assets:    {format_byte_size(free_prefix)}  [0x000000-0x{layout.pack_offset - 1:06X}]")
+    print(
+        f"  Assets (packed):       {format_byte_size(layout.pack_size)}  "
+        f"[0x{layout.pack_offset:06X}-0x{layout.rom_size - 1:06X}]"
+    )
+    for blob in layout.blobs:
+        end = blob.offset + blob.aligned_size - 1
+        pad = blob.aligned_size - blob.size
+        pad_note = f", pad {pad}" if pad else ""
+        print(
+            f"    {blob.name + ':':22} {format_byte_size(blob.size)}  "
+            f"[0x{blob.offset:06X}-0x{end:06X}]{pad_note}"
+        )
+
+
+def print_megadrive_rom_summary(
+    layout: AssetLayout,
+    *,
+    code_end: int,
+    title: str = "Mega Drive ROM layout",
+) -> None:
+    """Print vectors/header, code, free gap, and asset pack usage."""
+    vectors_size = 0x100
+    header_size = 0x100
+    header_region = vectors_size + header_size  # 0x000000-0x0001FF
+    code_start = 0x200
+    if code_end < code_start:
+        raise ValueError(f"code_end 0x{code_end:X} is before code start 0x{code_start:X}")
+    if code_end > layout.pack_offset:
+        raise ValueError(
+            f"code_end 0x{code_end:X} overlaps assets at 0x{layout.pack_offset:X}"
+        )
+    code_size = code_end - code_start
+    free_gap = layout.pack_offset - code_end
+    used = header_region + code_size + layout.pack_size
+    free_total = layout.rom_size - used
+
+    print(f"{title}:")
+    print(f"  ROM size:              {format_byte_size(layout.rom_size)}")
+    print(
+        f"  Header (vectors+Sega): {format_byte_size(header_region)}  "
+        f"[0x000000-0x0001FF]  (vectors {vectors_size}, rom_header {header_size})"
+    )
+    print(
+        f"  Code (startup+text):   {format_byte_size(code_size)}  "
+        f"[0x{code_start:06X}-0x{code_end - 1:06X}]"
+    )
+    if free_gap:
+        print(
+            f"  Free gap (to assets):  {format_byte_size(free_gap)}  "
+            f"[0x{code_end:06X}-0x{layout.pack_offset - 1:06X}]"
+        )
+    print(
+        f"  Assets (packed):       {format_byte_size(layout.pack_size)}  "
+        f"[0x{layout.pack_offset:06X}-0x{layout.rom_size - 1:06X}]"
+    )
+    for blob in layout.blobs:
+        end = blob.offset + blob.aligned_size - 1
+        print(
+            f"    {blob.name + ':':22} {format_byte_size(blob.size)}  "
+            f"[0x{blob.offset:06X}-0x{end:06X}]"
+        )
+    print(f"  Used (header+code+assets): {format_byte_size(used)}")
+    print(f"  Free total:                {format_byte_size(free_total)}")
