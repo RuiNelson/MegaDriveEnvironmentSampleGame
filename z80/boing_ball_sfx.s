@@ -166,8 +166,12 @@ set_bank:
 	ret
 
 ; ---------------------------------------------------------------------------
-; Stream PCM: C = delay count (Amiga period analogue).
+; Stream PCM: C = delay count (floor vs wall rate).
 ; Sample data is unsigned, centre 0x80.
+;
+; Pre-emptible: if the 68000 posts a new mailbox command mid-stream (e.g. wall
+; while floor is still sounding), abort immediately, centre the DAC, and return
+; with the mailbox still set so main_loop starts the new hit at once.
 ; ---------------------------------------------------------------------------
 
 play_pcm:
@@ -186,6 +190,11 @@ play_pcm:
 	ld	(YM0_ADDR), a
 
 .sample:
+	; New command from the 68K? Drop this hit and let main_loop handle it.
+	ld	a, (CMD_MAILBOX)
+	or	a
+	jr	nz, .abort
+
 	ld	a, (hl)			; unsigned PCM
 	inc	hl
 	ld	(YM0_DATA), a
@@ -201,4 +210,9 @@ play_pcm:
 
 	ld	a, 0x80
 	ld	(YM0_DATA), a		; rest at centre
+	ret
+
+.abort:
+	ld	a, 0x80
+	ld	(YM0_DATA), a		; cut off cleanly; mailbox left intact
 	ret
