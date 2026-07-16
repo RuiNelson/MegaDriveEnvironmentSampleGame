@@ -28,6 +28,8 @@ from asset_pack import (
 from boing_pcm import load_boing_pcm
 from tiles import build_tile_data
 
+# convert_boing_pcm is the only path that produces assets/boing_pcm.bin
+
 
 def repository_root() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -127,7 +129,7 @@ def parse_args() -> argparse.Namespace:
         "--boing-pcm",
         type=Path,
         default=repository / "assets" / "boing_pcm.bin",
-        help="Boing Ball impact PCM (unsigned 8-bit YM2612 DAC data)",
+        help="Amiga Boing impact sample (unsigned 8-bit or signed Amiga PCM)",
     )
     parser.add_argument(
         "--work-dir",

@@ -11,6 +11,11 @@ if [[ "${BUILD_DIR}" != /* ]]; then
     BUILD_DIR="${ROOT_DIR}/${BUILD_DIR}"
 fi
 
+"${PYTHON3}" "${ROOT_DIR}/tools/convert_boing_pcm.py" \
+    --input "${ROOT_DIR}/assets/boing.samples" \
+    --output "${ROOT_DIR}/assets/boing_pcm.bin" \
+    --target-rate 8000
+
 "${PYTHON3}" "${ROOT_DIR}/tools/build_assets.py" \
     --output "${BUILD_DIR}/sample_game_assets.bin" \
     --font-data "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp" \
