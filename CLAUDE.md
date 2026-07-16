@@ -84,4 +84,6 @@ cmake -S . -B build \
   and `$FF1000-$FF2FFF` for `BoingBallDemo`'s dynamic tile/DMA buffer.
 - Boing Ball bounce SFX use the Z80/YM2612 path (`z80/boing_ball_sfx.s` +
   `BoingBallFmSfx`); the main game keeps `PsgSoundEffects` on the SN76489.
+  Both are memory-mapped only (`$C00011`, `$A00000`, `$A11100`, `$A11200`).
+  Shared audio code must not call host sound/Z80 APIs.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

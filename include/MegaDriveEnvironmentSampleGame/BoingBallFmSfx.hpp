@@ -2,7 +2,7 @@
 
 /**
  * @file BoingBallFmSfx.hpp
- * 68000 host for the Boing Ball Z80/YM2612 sound driver.
+ * Portable 68000 host for the Boing Ball Z80/YM2612 sound driver.
  */
 
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
@@ -12,9 +12,11 @@ namespace sample::audio {
 /**
  * Loads the Boing Ball FM driver into Z80 RAM and posts bounce commands.
  *
- * All busreq/reset/Z80-RAM/YM traffic goes through memory::Memory so the same
- * class runs on MegaDriveEnvironment and on real hardware. Only the Boing Ball
- * demo uses this path; the main game still uses PsgSoundEffects.
+ * Every access is a memory-mapped bus operation through memory::Memory:
+ * Z80 RAM at $A00000, bus request at $A11100, reset at $A11200. The Z80
+ * program itself programs the YM2612 at $4000 on its own bus. No host sound
+ * or Z80 API is used. Only the Boing Ball demo uses this path; the main game
+ * still uses PsgSoundEffects.
  */
 class BoingBallFmSfx final {
   public:
@@ -23,7 +25,7 @@ class BoingBallFmSfx final {
     static constexpr std::uint8_t kCommandFloor = 1;
     static constexpr std::uint8_t kCommandWall = 2;
 
-    /** Z80 work-RAM addresses observed by the 68000 at $A00000+. */
+    /** 68000-visible addresses for the Z80 control ports and work RAM window. */
     static constexpr memory::Address kZ80RamBase = 0xA00000;
     static constexpr memory::Address kZ80BusRequest = 0xA11100;
     static constexpr memory::Address kZ80Reset = 0xA11200;
@@ -33,8 +35,8 @@ class BoingBallFmSfx final {
     explicit BoingBallFmSfx(memory::Memory &memory);
 
     /**
-     * Bus-requests the Z80, copies the ROM-resident driver, clears the mailbox
-     * and releases the Z80 to run.
+     * Requests the Z80 bus, copies the ROM-resident driver into Z80 RAM,
+     * clears the mailbox, and releases the Z80 to run.
      */
     void initialize();
 

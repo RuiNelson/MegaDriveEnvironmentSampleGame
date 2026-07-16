@@ -118,8 +118,8 @@ int main() {
     assert(memory.z80Ram_[sample::audio::BoingBallFmSfx::kMailboxOffset] ==
            sample::audio::BoingBallFmSfx::kCommandIdle);
 
-    // Accurate bus controller sequence: /BUSREQ, then /RESET released so the
-    // 68K can see Z80 RAM, a reset pulse after the copy, then bus release.
+    // Memory-map protocol: /BUSREQ, /RESET released so $A00000 is live, copy,
+    // reset pulse, then bus release.
     bool sawBusRequest = false;
     bool sawBusRelease = false;
     bool sawResetHold = false;

@@ -13,9 +13,9 @@ namespace sample::audio {
  * Plays the sample game's short effects through the Mega Drive PSG port.
  *
  * The class writes bytes to address $C00011 through memory::Memory. The same
- * calls therefore reach MegaDriveEnvironment's PSG emulation on the host and
- * the physical SN76489-compatible chip on real hardware. Call update() exactly
- * once per game frame so effect durations remain deterministic.
+ * memory-mapped path is valid on every target that exposes the Mega Drive map.
+ * Call update() exactly once per game frame so effect durations remain
+ * deterministic.
  */
 class PsgSoundEffects final {
   public:
