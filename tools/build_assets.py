@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build the raw 32-Mbit asset ROM and generated layout metadata.
 
-Packs every named blob (Z80 programs, VDP tiles, …) at the end of a headerless
-4 MiB image. Emits:
+Packs every named blob (Z80 programs, PCM samples, VDP tiles, …) at the end of
+a headerless 4 MiB image. Emits:
 
   - the full asset ROM used by the PC loader
   - AssetLayout.hpp with freestanding C++ constants
@@ -25,6 +25,7 @@ from asset_pack import (
     write_layout_json,
     write_pack_binary,
 )
+from boing_pcm import load_boing_pcm
 from tiles import build_tile_data
 
 
@@ -48,6 +49,7 @@ def build_asset_image(
     *,
     font_data_path: Path,
     z80_source: Path,
+    boing_pcm_path: Path,
     work_dir: Path,
 ) -> tuple[bytes, object, bytes]:
     """Return (rom_image, layout, z80_binary)."""
@@ -56,16 +58,26 @@ def build_asset_image(
     z80_list_path = work_dir / "z80_boing_ball_sfx.lst"
     z80_binary = assemble_z80(z80_source, z80_binary_path, list_file=z80_list_path)
     tile_data = build_tile_data(font_data_path)
+    boing_pcm = load_boing_pcm(boing_pcm_path)
 
-    # Order matters: last blob sits at the absolute end of the ROM (tiles keep
-    # their historical end-of-image location; the Z80 driver is packed just
-    # before them so future blobs can grow downward the same way).
+    # Order matters: last blob sits at the absolute end of the ROM. The PCM
+    # sample is packed before the Z80 driver so both live in the final 32 KiB
+    # bank window when possible (Z80 streams PCM via $6000 banking).
     image, layout = pack_blobs(
         (
+            AssetBlob("boing_pcm", boing_pcm, align=2),
             AssetBlob("z80_boing_ball_sfx", z80_binary, align=2),
             AssetBlob("tiles", tile_data, align=2),
         )
     )
+
+    pcm = layout.blob("boing_pcm")
+    bank_base = pcm.offset & ~0x7FFF
+    if pcm.offset + pcm.size > bank_base + 0x8000:
+        raise RuntimeError(
+            f"boing PCM [{pcm.offset:#x}..{pcm.offset + pcm.size:#x}) spans a "
+            f"32 KiB bank boundary at {bank_base + 0x8000:#x}; adjust packing"
+        )
     return image, layout, z80_binary
 
 
@@ -112,6 +124,12 @@ def parse_args() -> argparse.Namespace:
         help="Boing Ball Z80 driver assembly source",
     )
     parser.add_argument(
+        "--boing-pcm",
+        type=Path,
+        default=repository / "assets" / "boing_pcm.bin",
+        help="Amiga Boing impact sample (unsigned 8-bit or signed Amiga PCM)",
+    )
+    parser.add_argument(
         "--work-dir",
         type=Path,
         default=default_build / "generated" / "assets",
@@ -139,7 +157,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    # Allow `python tools/build_assets.py` from any cwd.
     tools_dir = Path(__file__).resolve().parent
     if str(tools_dir) not in sys.path:
         sys.path.insert(0, str(tools_dir))
@@ -148,6 +165,7 @@ def main() -> int:
     image, layout, z80_binary = build_asset_image(
         font_data_path=args.font_data.resolve(),
         z80_source=args.z80_source.resolve(),
+        boing_pcm_path=args.boing_pcm.resolve(),
         work_dir=args.work_dir.resolve(),
     )
     write_outputs(
@@ -161,8 +179,10 @@ def main() -> int:
 
     tiles = layout.blob("tiles")
     z80 = layout.blob("z80_boing_ball_sfx")
+    pcm = layout.blob("boing_pcm")
     print(
         f"Wrote {args.output}: {ROM_SIZE} bytes, "
+        f"pcm={pcm.size} @ 0x{pcm.offset:06X}, "
         f"z80={z80.size} @ 0x{z80.offset:06X}, "
         f"tiles={tiles.size} @ 0x{tiles.offset:06X}, "
         f"pack=0x{layout.pack_offset:06X}-0x{ROM_SIZE - 1:06X}"

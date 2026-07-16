@@ -14,6 +14,7 @@ sys.path.insert(0, str(REPOSITORY / "tools"))
 
 from assemble_z80 import assemble_z80  # noqa: E402
 from asset_pack import AssetBlob, AssetLayout, pack_blobs  # noqa: E402
+from boing_pcm import load_boing_pcm  # noqa: E402
 from build_assets import build_asset_image, write_outputs  # noqa: E402
 from tiles import (  # noqa: E402
     CUSTOM_TILE_ROWS,
@@ -43,6 +44,9 @@ def main() -> int:
     assert len(tile_data) == (FONT_TILE_COUNT + len(CUSTOM_TILE_ROWS)) * TILE_SIZE
 
     z80_source = REPOSITORY / "z80" / "boing_ball_sfx.s"
+    boing_pcm_path = REPOSITORY / "assets" / "boing_pcm.bin"
+    boing_pcm = load_boing_pcm(boing_pcm_path)
+    assert len(boing_pcm) > 1000
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
         z80_binary = assemble_z80(z80_source, work / "driver.bin")
@@ -52,6 +56,7 @@ def main() -> int:
 
         image, layout = pack_blobs(
             (
+                AssetBlob("boing_pcm", boing_pcm),
                 AssetBlob("z80_boing_ball_sfx", z80_binary),
                 AssetBlob("tiles", tile_data),
             )
@@ -59,19 +64,26 @@ def main() -> int:
         assert len(image) == layout.rom_size
         tiles = layout.blob("tiles")
         z80 = layout.blob("z80_boing_ball_sfx")
+        pcm = layout.blob("boing_pcm")
         assert image[tiles.offset : tiles.offset + tiles.size] == tile_data
         assert image[z80.offset : z80.offset + z80.size] == z80_binary
+        assert image[pcm.offset : pcm.offset + pcm.size] == boing_pcm
         assert tiles.offset + tiles.aligned_size == layout.rom_size
         assert z80.offset + z80.aligned_size == tiles.offset
+        assert pcm.offset + pcm.aligned_size == z80.offset
+        bank_base = pcm.offset & ~0x7FFF
+        assert pcm.offset + pcm.size <= bank_base + 0x8000
 
         # Full builder path used by CMake / build_pc.sh / build_megadrive.
         image2, layout2, z802 = build_asset_image(
             font_data_path=font_data,
             z80_source=z80_source,
+            boing_pcm_path=boing_pcm_path,
             work_dir=work / "assets",
         )
         assert z802 == z80_binary
         assert layout2.blob("tiles").size == len(tile_data)
+        assert layout2.blob("boing_pcm").size == len(boing_pcm)
 
         rom_path = work / "rom.bin"
         header_path = work / "AssetLayout.hpp"
@@ -91,6 +103,7 @@ def main() -> int:
         assert loaded.pack_offset == layout2.pack_offset
         header = header_path.read_text(encoding="utf-8")
         assert "kZ80BoingBallSfxOffset" in header
+        assert "kBoingPcmOffset" in header
         assert "kTilesOffset" in header
         assert f"{layout2.blob('tiles').offset}u" in header
 

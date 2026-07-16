@@ -1,6 +1,6 @@
 /**
  * @file BoingBallFmSfx.cpp
- * Memory-mapped 68000 bootstrap and mailbox for the Boing Ball Z80 FM driver.
+ * Memory-mapped 68000 bootstrap and mailbox for the Boing Ball Z80 DAC driver.
  */
 
 #include "MegaDriveEnvironmentSampleGame/BoingBallFmSfx.hpp"
@@ -16,11 +16,8 @@ constexpr std::uint16_t kBusReleaseWord = 0x0000;
 constexpr std::uint16_t kResetHoldWord = 0x0000;
 constexpr std::uint16_t kResetRunWord = 0x0100;
 
-// Bounded spin so a stuck bus never hangs the shared game loop.
 constexpr int kBusAckSpinLimit = 0x8000;
 
-// Brief 68000 busy-wait so the Z80 can run while /BUSREQ is clear between
-// short ownership windows (ready-flag poll, etc.).
 void yieldToZ80() {
     for (int spin = 0; spin < 64; ++spin) {
         volatile int sink = spin;
@@ -33,11 +30,17 @@ void yieldToZ80() {
 BoingBallFmSfx::BoingBallFmSfx(memory::Memory &memory) : memory_(memory) {
 }
 
+void BoingBallFmSfx::writeZ80WordLE(std::uint16_t offset, std::uint16_t value) {
+    // Z80 is little-endian; write low byte at the lower address.
+    memory_.write8(kZ80RamBase + offset, static_cast<std::uint8_t>(value & 0xFFu));
+    memory_.write8(kZ80RamBase + offset + 1, static_cast<std::uint8_t>((value >> 8) & 0xFFu));
+}
+
 void BoingBallFmSfx::initialize() {
     // Standard 68000 Z80-bus protocol (memory map only):
     //  1. Assert /BUSREQ and wait for /BUSACK.
     //  2. Release /RESET so the 68K window at $A00000 is live.
-    //  3. Copy the driver and clear the mailbox.
+    //  3. Copy the driver and install PCM parameters.
     //  4. Pulse /RESET so the Z80 restarts at $0000 with that image.
     //  5. Release /BUSREQ so the Z80 runs.
     requestBus();
@@ -52,12 +55,19 @@ void BoingBallFmSfx::initialize() {
     memory_.write8(kZ80RamBase + kMailboxOffset, kCommandIdle);
     memory_.write8(kZ80RamBase + kStatusOffset, 0);
 
+    // Point the Z80 at the ROM-resident Amiga sample through its 32 KiB bank.
+    const auto pcmOffset = assets::kBoingPcmOffset;
+    const auto pcmSize = static_cast<std::uint16_t>(assets::kBoingPcmSize);
+    const auto bank = static_cast<std::uint16_t>(pcmOffset >> 15);
+    const auto ptr = static_cast<std::uint16_t>(0x8000u | (pcmOffset & 0x7FFFu));
+    writeZ80WordLE(kPcmBankOffset, bank);
+    writeZ80WordLE(kPcmPtrOffset, ptr);
+    writeZ80WordLE(kPcmLenOffset, pcmSize);
+
     holdReset();
     releaseReset();
     releaseBus();
 
-    // Poll the driver's ready byte through the same bus protocol. Own the bus
-    // only for the read, then yield so the Z80 can advance init.
     for (int spin = 0; spin < kBusAckSpinLimit; ++spin) {
         requestBus();
         const auto status = memory_.read8(kZ80RamBase + kStatusOffset);
@@ -85,7 +95,6 @@ bool BoingBallFmSfx::ready() const {
 void BoingBallFmSfx::requestBus() {
     memory_.write16(kZ80BusRequest, kBusRequestWord);
     for (int spin = 0; spin < kBusAckSpinLimit; ++spin) {
-        // /BUSACK: bit 8 clear means the 68000 owns the Z80 bus.
         if ((memory_.read16(kZ80BusRequest) & kBusRequestWord) == 0) {
             return;
         }
@@ -109,7 +118,6 @@ void BoingBallFmSfx::writeCommand(std::uint8_t command) {
         return;
     }
 
-    // Mailbox lives in Z80 RAM: take the bus, poke one byte, release.
     requestBus();
     memory_.write8(kZ80RamBase + kMailboxOffset, command);
     releaseBus();

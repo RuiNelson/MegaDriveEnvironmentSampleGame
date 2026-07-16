@@ -2,7 +2,7 @@
 
 /**
  * @file BoingBallFmSfx.hpp
- * Portable 68000 host for the Boing Ball Z80/YM2612 sound driver.
+ * Portable 68000 host for the Boing Ball Z80/YM2612 DAC sample driver.
  */
 
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
@@ -10,13 +10,13 @@
 namespace sample::audio {
 
 /**
- * Loads the Boing Ball FM driver into Z80 RAM and posts bounce commands.
+ * Loads the Boing Ball Z80 driver, points it at the ROM-resident Amiga impact
+ * sample, and posts bounce commands through a Z80 RAM mailbox.
  *
  * Every access is a memory-mapped bus operation through memory::Memory:
  * Z80 RAM at $A00000, bus request at $A11100, reset at $A11200. The Z80
- * program itself programs the YM2612 at $4000 on its own bus. No host sound
- * or Z80 API is used. Only the Boing Ball demo uses this path; the main game
- * still uses PsgSoundEffects.
+ * streams PCM from the cartridge via its bank window and writes the YM2612
+ * DAC. No host sound or Z80 API is used.
  */
 class BoingBallFmSfx final {
   public:
@@ -31,19 +31,23 @@ class BoingBallFmSfx final {
     static constexpr memory::Address kZ80Reset = 0xA11200;
     static constexpr std::uint16_t kMailboxOffset = 0x1E00;
     static constexpr std::uint16_t kStatusOffset = 0x1E01;
+    /** Little-endian parameter block written after the driver image. */
+    static constexpr std::uint16_t kPcmBankOffset = 0x1E02;
+    static constexpr std::uint16_t kPcmPtrOffset = 0x1E04;
+    static constexpr std::uint16_t kPcmLenOffset = 0x1E06;
 
     explicit BoingBallFmSfx(memory::Memory &memory);
 
     /**
-     * Requests the Z80 bus, copies the ROM-resident driver into Z80 RAM,
-     * clears the mailbox, and releases the Z80 to run.
+     * Requests the Z80 bus, copies the driver, installs PCM bank/pointer/
+     * length, and releases the Z80 to run.
      */
     void initialize();
 
-    /** Posts the floor-bounce command (last command wins). */
+    /** Posts the floor-bounce command (Amiga period 255 rate). */
     void playFloorBounce();
 
-    /** Posts the wall-bounce command (last command wins). */
+    /** Posts the wall-bounce command (Amiga period 160 rate). */
     void playWallBounce();
 
     /** True after a successful initialize(). */
@@ -55,6 +59,7 @@ class BoingBallFmSfx final {
     void holdReset();
     void releaseReset();
     void writeCommand(std::uint8_t command);
+    void writeZ80WordLE(std::uint16_t offset, std::uint16_t value);
 
     memory::Memory &memory_;
     bool ready_ = false;

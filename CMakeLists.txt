@@ -35,6 +35,7 @@ set(SAMPLE_FONT_DATA
     "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
 )
 set(SAMPLE_Z80_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/z80/boing_ball_sfx.s")
+set(SAMPLE_BOING_PCM "${CMAKE_CURRENT_SOURCE_DIR}/assets/boing_pcm.bin")
 
 option(SAMPLE_ASSET_ROM_PREBUILT "Asset ROM was generated before CMake build" OFF)
 if(SAMPLE_ASSET_ROM_PREBUILT)
@@ -59,6 +60,7 @@ else()
                 --output "${SAMPLE_ASSET_ROM}"
                 --font-data "${SAMPLE_FONT_DATA}"
                 --z80-source "${SAMPLE_Z80_SOURCE}"
+                --boing-pcm "${SAMPLE_BOING_PCM}"
                 --work-dir "${SAMPLE_ASSETS_WORK_DIR}"
                 --layout-header "${SAMPLE_ASSET_LAYOUT_HEADER}"
                 --layout-json "${SAMPLE_ASSET_LAYOUT_JSON}"
@@ -67,10 +69,12 @@ else()
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_assets.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_pack.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/assemble_z80.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/boing_pcm.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/tiles.py"
             "${SAMPLE_FONT_DATA}"
             "${SAMPLE_Z80_SOURCE}"
-        COMMENT "Building asset ROM (tiles + Z80 driver)"
+            "${SAMPLE_BOING_PCM}"
+        COMMENT "Building asset ROM (PCM + Z80 driver + tiles)"
         VERBATIM
     )
     add_custom_target(sample_asset_rom ALL DEPENDS

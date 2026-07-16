@@ -118,6 +118,22 @@ int main() {
     assert(memory.z80Ram_[sample::audio::BoingBallFmSfx::kMailboxOffset] ==
            sample::audio::BoingBallFmSfx::kCommandIdle);
 
+    // PCM parameters point at the ROM sample through the Z80 bank window.
+    const auto expectedBank =
+        static_cast<std::uint16_t>(sample::assets::kBoingPcmOffset >> 15);
+    const auto expectedPtr = static_cast<std::uint16_t>(
+        0x8000u | (sample::assets::kBoingPcmOffset & 0x7FFFu));
+    const auto expectedLen = static_cast<std::uint16_t>(sample::assets::kBoingPcmSize);
+    const auto bankLo = memory.z80Ram_[sample::audio::BoingBallFmSfx::kPcmBankOffset];
+    const auto bankHi = memory.z80Ram_[sample::audio::BoingBallFmSfx::kPcmBankOffset + 1];
+    const auto ptrLo = memory.z80Ram_[sample::audio::BoingBallFmSfx::kPcmPtrOffset];
+    const auto ptrHi = memory.z80Ram_[sample::audio::BoingBallFmSfx::kPcmPtrOffset + 1];
+    const auto lenLo = memory.z80Ram_[sample::audio::BoingBallFmSfx::kPcmLenOffset];
+    const auto lenHi = memory.z80Ram_[sample::audio::BoingBallFmSfx::kPcmLenOffset + 1];
+    assert(static_cast<std::uint16_t>(bankLo | (bankHi << 8)) == expectedBank);
+    assert(static_cast<std::uint16_t>(ptrLo | (ptrHi << 8)) == expectedPtr);
+    assert(static_cast<std::uint16_t>(lenLo | (lenHi << 8)) == expectedLen);
+
     // Memory-map protocol: /BUSREQ, /RESET released so $A00000 is live, copy,
     // reset pulse, then bus release.
     bool sawBusRequest = false;

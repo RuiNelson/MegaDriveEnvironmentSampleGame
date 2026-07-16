@@ -15,6 +15,7 @@ fi
     --output "${BUILD_DIR}/sample_game_assets.bin" \
     --font-data "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp" \
     --z80-source "${ROOT_DIR}/z80/boing_ball_sfx.s" \
+    --boing-pcm "${ROOT_DIR}/assets/boing_pcm.bin" \
     --work-dir "${BUILD_DIR}/generated/assets" \
     --layout-header "${BUILD_DIR}/generated/AssetLayout.hpp" \
     --layout-json "${BUILD_DIR}/generated/asset_layout.json" \

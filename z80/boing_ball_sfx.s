@@ -1,39 +1,49 @@
-; Boing Ball demo FM sound driver for the Mega Drive Z80.
+; Boing Ball demo sound driver for the Mega Drive Z80.
 ; Assembled with z80asm (https://www.nongnu.org/z80asm/).
 ;
+; Plays the original Amiga Boing impact sample (garage-door slam) through the
+; YM2612 DAC, streaming from cartridge ROM via the Z80 32 KiB bank window.
+;
 ; Z80 RAM layout (shared with the 68000 via $A00000):
-;   $0000..  this program
-;   $1E00    command mailbox (68K writes, Z80 clears)
-;              0 = idle
-;              1 = floor bounce
-;              2 = wall bounce
-;   $1E01    status (Z80 writes 1 when ready)
+;   $0000..     this program
+;   $1E00       command mailbox (68K writes, Z80 clears)
+;                 0 = idle
+;                 1 = floor bounce  (Amiga period 255)
+;                 2 = wall bounce   (Amiga period 160)
+;   $1E01       status (Z80 writes 1 when ready)
+;   $1E02/$1E03 sample bank (word, little-endian) = cart_addr >> 15
+;   $1E04/$1E05 sample pointer in bank window (word LE, $8000+)
+;   $1E06/$1E07 sample length in bytes (word LE)
 ;
 ; YM2612 is memory-mapped on the Z80 bus at $4000-$4003.
-;
-; Timbre aims at the classic Amiga "Boing" demo: a heavy, short metallic slam
-; (the original was famously a garage-door sample) — weighty and resonant,
-; not a beep and not a white-noise burst.
+; Bank register is written bit-serially at $6000.
 
 	org	0
 
 YM_ADDR:	equ	0x4000
 YM_DATA:	equ	0x4001
-; Keep the mailbox well below the stack (SP starts at $1E00).
+Z80_BANK:	equ	0x6000
+
 CMD_MAILBOX:	equ	0x1E00
 STATUS:		equ	0x1E01
+PCM_BANK:	equ	0x1E02
+PCM_PTR:	equ	0x1E04
+PCM_LEN:	equ	0x1E06
 
 CMD_FLOOR:	equ	1
 CMD_WALL:	equ	2
 
+; Playback delays (inner DJNZ counts). Tuned for ~14 kHz / ~22 kHz on a
+; 3.58 MHz Z80 with a tight DAC write path (no busy-wait per sample).
+DELAY_FLOOR:	equ	18
+DELAY_WALL:	equ	11
+
 start:
 	di
-	; Stack grows down from just below the mailbox so nested YM helpers
-	; cannot overwrite the 68K command byte.
 	ld	sp, 0x1E00
 	xor	a
 	ld	(CMD_MAILBOX), a
-	call	init_ym
+	call	init_dac
 	ld	a, 1
 	ld	(STATUS), a
 
@@ -52,19 +62,19 @@ main_loop:
 	jr	main_loop
 
 do_floor:
-	call	sfx_floor
+	ld	c, DELAY_FLOOR
+	call	play_pcm
 	jr	main_loop
 
 do_wall:
-	call	sfx_wall
+	ld	c, DELAY_WALL
+	call	play_pcm
 	jr	main_loop
 
 ; ---------------------------------------------------------------------------
-; YM2612 helpers (part 0 only)
+; YM2612 helpers
 ; ---------------------------------------------------------------------------
 
-; Wait until the chip is not busy (status bit 7 clear).
-; Clobbers A — callers that need A preserved must push/pop around this.
 ym_wait:
 	ld	a, (YM_ADDR)
 	rla
@@ -72,7 +82,6 @@ ym_wait:
 	ret
 
 ; Write E to register A on FM part 0.
-; Must preserve A across the busy wait: ym_wait loads status into A.
 ym_write:
 	push	af
 	call	ym_wait
@@ -82,209 +91,100 @@ ym_write:
 	ld	(YM_DATA), a
 	ret
 
-; Key-on / key-off channel 0. D = 0xF0 (on) or 0x00 (off).
-ym_key:
-	ld	a, 0x28
-	ld	e, d
-	jp	ym_write
-
-; Set channel 0 block/f-number. B = block (0-7), HL = f-number (0-0x3FF).
-ym_pitch:
-	ld	a, h
-	and	0x07
-	ld	c, a			; f-number bits 8-10
-	ld	a, b
-	and	0x07
-	add	a, a
-	add	a, a
-	add	a, a			; block << 3
-	or	c
-	ld	e, a
-	ld	a, 0xA4
-	call	ym_write		; block / fnum high
-	ld	a, 0xA0
-	ld	e, l
-	call	ym_write		; fnum low
-	ret
-
-; Busy-wait. BC = iteration count.
-delay_bc:
-	dec	bc
-	ld	a, b
-	or	c
-	jr	nz, delay_bc
-	ret
-
 ; ---------------------------------------------------------------------------
-; Voice: heavy metallic slam (algorithm 4, mild feedback).
-;
-; Two FM pairs give body + a soft upper resonance without pure noise.
-; Op1 modulates Op2 (weight), Op3 modulates Op4 (short metallic edge).
-; Feedback on the first pair is kept moderate so it stays "door" not "buzz".
+; DAC init — silence FM channels, enable DAC on channel 6 path.
 ; ---------------------------------------------------------------------------
 
-init_ym:
+init_dac:
 	ld	a, 0x22
 	ld	e, 0x00
 	call	ym_write		; LFO off
 	ld	a, 0x27
 	ld	e, 0x00
-	call	ym_write		; timers off, ch3 normal
-	ld	d, 0x00
-	call	ym_key			; key off ch0
+	call	ym_write		; timers off
 
-	; Feedback 4, algorithm 4 → (M1→C1) + (M2→C2)
-	ld	a, 0xB0
-	ld	e, 0x24
+	; Key off all six channels
+	ld	b, 0
+.koff:
+	ld	a, 0x28
+	ld	e, b
 	call	ym_write
-	ld	a, 0xB4
-	ld	e, 0xC0
-	call	ym_write		; L/R pan centre
+	inc	b
+	ld	a, b
+	cp	3
+	jr	c, .koff
+	ld	b, 4
+.koff2:
+	ld	a, 0x28
+	ld	e, b
+	call	ym_write
+	inc	b
+	ld	a, b
+	cp	7
+	jr	c, .koff2
 
-	; --- Slot 1 (modulator): low-ratio rattle of the door ---
-	ld	a, 0x30
-	ld	e, 0x02
-	call	ym_write		; DT=0 MUL=2
-	ld	a, 0x40
-	ld	e, 0x1C
-	call	ym_write		; TL moderate (not harsh)
-	ld	a, 0x50
-	ld	e, 0x1F
-	call	ym_write		; AR=31
-	ld	a, 0x60
-	ld	e, 0x10
-	call	ym_write		; D1R
-	ld	a, 0x70
-	ld	e, 0x0C
-	call	ym_write		; D2R
+	; Centre silence on the DAC data port, then enable DAC mode.
+	ld	a, 0x2A
+	ld	e, 0x80
+	call	ym_write
+	ld	a, 0x2B
+	ld	e, 0x80
+	call	ym_write		; DAC enable
+	ret
+
+; ---------------------------------------------------------------------------
+; Bank window: shift 9 bits (68K A15..A23) into $6000, LSB first.
+; HL = bank number (cart_addr >> 15)
+; ---------------------------------------------------------------------------
+
+set_bank:
+	ld	b, 9
+.sb_loop:
+	ld	a, l
+	and	1
+	ld	(Z80_BANK), a
+	srl	h
+	rr	l
+	djnz	.sb_loop
+	ret
+
+; ---------------------------------------------------------------------------
+; Stream PCM from the banked cartridge window to the YM2612 DAC.
+; C = per-sample delay (DJNZ count)
+; ---------------------------------------------------------------------------
+
+play_pcm:
+	; Install bank for the sample
+	ld	hl, (PCM_BANK)
+	call	set_bank
+
+	ld	hl, (PCM_PTR)
+	ld	de, (PCM_LEN)
+	ld	a, d
+	or	e
+	ret	z
+
+	; Point YM address latch at DAC data ($2A) once per stream.
+	call	ym_wait
+	ld	a, 0x2A
+	ld	(YM_ADDR), a
+
+.sample:
+	ld	a, (hl)
+	inc	hl
+	ld	(YM_DATA), a
+
+	; Pace the stream. Outer count in B from C.
+	ld	b, c
+.delay:
+	djnz	.delay
+
+	dec	de
+	ld	a, d
+	or	e
+	jr	nz, .sample
+
+	; Return DAC to centre so the next hit starts clean.
 	ld	a, 0x80
-	ld	e, 0x8F
-	call	ym_write		; SL=8 RR=15
-
-	; --- Slot 2 (carrier): heavy fundamental ---
-	ld	a, 0x34
-	ld	e, 0x01
-	call	ym_write		; MUL=1
-	ld	a, 0x44
-	ld	e, 0x06
-	call	ym_write		; TL almost full (body)
-	ld	a, 0x54
-	ld	e, 0x1F
-	call	ym_write		; AR=31
-	ld	a, 0x64
-	ld	e, 0x0A
-	call	ym_write		; slower decay = weight
-	ld	a, 0x74
-	ld	e, 0x07
-	call	ym_write
-	ld	a, 0x84
-	ld	e, 0x5A
-	call	ym_write		; SL=5 RR=10 (lingering thud)
-
-	; --- Slot 3 (modulator): soft upper metal ---
-	ld	a, 0x38
-	ld	e, 0x03
-	call	ym_write		; MUL=3
-	ld	a, 0x48
-	ld	e, 0x28
-	call	ym_write		; quieter modulator
-	ld	a, 0x58
-	ld	e, 0x1F
-	call	ym_write
-	ld	a, 0x68
-	ld	e, 0x14
-	call	ym_write
-	ld	a, 0x78
-	ld	e, 0x10
-	call	ym_write
-	ld	a, 0x88
-	ld	e, 0xAF
-	call	ym_write		; SL=10 RR=15 (dies fast)
-
-	; --- Slot 4 (carrier): short bright edge, kept quiet ---
-	ld	a, 0x3C
-	ld	e, 0x01
-	call	ym_write
-	ld	a, 0x4C
-	ld	e, 0x18
-	call	ym_write		; quieter than main body
-	ld	a, 0x5C
-	ld	e, 0x1F
-	call	ym_write
-	ld	a, 0x6C
-	ld	e, 0x12
-	call	ym_write
-	ld	a, 0x7C
-	ld	e, 0x0E
-	call	ym_write
-	ld	a, 0x8C
-	ld	e, 0x9F
-	call	ym_write
-	ret
-
-; ---------------------------------------------------------------------------
-; Effects — short downward pitch glides sell the heavy falling mass.
-; ---------------------------------------------------------------------------
-
-; Floor: deep garage-door slam, longer body.
-sfx_floor:
-	; Start ~55 Hz (block 2, fnum high enough for a thick thud)
-	ld	b, 2
-	ld	hl, 0x280
-	call	ym_pitch
-	ld	d, 0xF0
-	call	ym_key
-
-	ld	bc, 0x0C00
-	call	delay_bc
-	ld	b, 2
-	ld	hl, 0x200
-	call	ym_pitch		; drop
-
-	ld	bc, 0x1000
-	call	delay_bc
-	ld	b, 2
-	ld	hl, 0x180
-	call	ym_pitch		; drop again
-
-	ld	bc, 0x1400
-	call	delay_bc
-	ld	b, 1
-	ld	hl, 0x300
-	call	ym_pitch		; settle lower octave
-
-	ld	bc, 0x1800
-	call	delay_bc
-	ld	d, 0x00
-	call	ym_key
-	ld	bc, 0x1000
-	call	delay_bc
-	ret
-
-; Wall: same family, a bit higher and shorter — still heavy, not a click.
-sfx_wall:
-	ld	b, 2
-	ld	hl, 0x320
-	call	ym_pitch
-	ld	d, 0xF0
-	call	ym_key
-
-	ld	bc, 0x0A00
-	call	delay_bc
-	ld	b, 2
-	ld	hl, 0x280
-	call	ym_pitch
-
-	ld	bc, 0x0E00
-	call	delay_bc
-	ld	b, 2
-	ld	hl, 0x200
-	call	ym_pitch
-
-	ld	bc, 0x1000
-	call	delay_bc
-	ld	d, 0x00
-	call	ym_key
-	ld	bc, 0x0C00
-	call	delay_bc
+	ld	(YM_DATA), a
 	ret
