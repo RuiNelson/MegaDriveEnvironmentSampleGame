@@ -7,6 +7,8 @@
 
 #include "MegaDriveEnvironmentSampleGame/VdpUtils.hpp"
 
+#include "AssetLayout.hpp"
+
 namespace sample {
 namespace {
 
@@ -28,11 +30,6 @@ constexpr int kCookieBannerLastRow = 20;
 constexpr const char *kBlankScreenRow = "                                        ";
 constexpr int kVisibleScanlineCount = 224;
 
-// Both ROM formats are 32 Mbit and place the same packed tile blob at the end.
-constexpr std::uint32_t kRomSize = 4 * 1024 * 1024;
-constexpr std::uint32_t kRomTileCount = 101;
-constexpr std::uint32_t kRomTileData = kRomSize - kRomTileCount * 32;
-
 // CRAM words use the Mega Drive's 0000BBB0GGG0RRR0 channel layout.
 constexpr std::uint16_t kTextPalette[16]{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -51,12 +48,13 @@ constexpr std::uint16_t kFloorPalette[16]{
 
 SampleGame::SampleGame(memory::Memory &memory)
     : memory_(memory), player1Controller_(memory, controllers::Player::One), soundEffects_(memory),
-      boingBallDemo_(memory) {
+      boingBallFmSfx_(memory), boingBallDemo_(memory) {
 }
 
 void SampleGame::initialize() {
     player1Controller_.initialize();
     soundEffects_.initialize();
+    boingBallFmSfx_.initialize();
     initializeGraphics();
     render();
 }
@@ -114,10 +112,11 @@ void SampleGame::initializeGraphics() {
     boingBallDemo_.initialize();
 
     // Copy only the required spans even though all assets share one ROM blob.
-    vdp::loadTilesFromRom(memory_, kRomTileData, kFontTile, kFontTileCount);
-    vdp::loadTilesFromRom(memory_, kRomTileData + kPlayerRomTile * 32, kPlayerTile, 4);
-    vdp::loadTilesFromRom(memory_, kRomTileData + kGemRomTile * 32, kGemTile, 1);
-    vdp::loadTilesFromRom(memory_, kRomTileData + kFloorRomTile * 32, kFloorTile, 1);
+    const auto tileRom = static_cast<memory::Address>(assets::kTilesOffset);
+    vdp::loadTilesFromRom(memory_, tileRom, kFontTile, kFontTileCount);
+    vdp::loadTilesFromRom(memory_, tileRom + kPlayerRomTile * 32, kPlayerTile, 4);
+    vdp::loadTilesFromRom(memory_, tileRom + kGemRomTile * 32, kGemTile, 1);
+    vdp::loadTilesFromRom(memory_, tileRom + kFloorRomTile * 32, kFloorTile, 1);
 
     activateGameScreen();
     vdp::finishInitialization(memory_);
@@ -174,9 +173,9 @@ void SampleGame::update() {
         }
         const auto events = boingBallDemo_.update(controls.up, controls.down);
         if (events.hitFloor) {
-            soundEffects_.playBallFloorBounce();
+            boingBallFmSfx_.playFloorBounce();
         } else if (events.hitWall) {
-            soundEffects_.playBallWallBounce();
+            boingBallFmSfx_.playWallBounce();
         }
         return;
     }

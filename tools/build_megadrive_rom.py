@@ -4,19 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from build_asset_rom import ROM_SIZE, TILE_SIZE, build_tile_data
+from asset_pack import ROM_SIZE, AssetLayout
 
 
 ROM_CHECKSUM_OFFSET = 0x18E
 ROM_CHECKSUM_START = 0x200
-TILE_COUNT = 101
-TILE_DATA_SIZE = TILE_COUNT * TILE_SIZE
-TILE_DATA_OFFSET = ROM_SIZE - TILE_DATA_SIZE
 
 
 def run(command: list[str], *, cwd: Path) -> None:
@@ -24,11 +22,13 @@ def run(command: list[str], *, cwd: Path) -> None:
     subprocess.run(command, cwd=cwd, check=True)
 
 
-def require_tool(name: str) -> str:
+def require_tool(name: str, *, hint: str | None = None) -> str:
     executable = shutil.which(name)
     if executable is None:
-        hint = "on macOS run 'brew install m68k-elf-binutils m68k-elf-gcc'"
-        raise RuntimeError(f"required tool '{name}' was not found; {hint}")
+        message = f"required tool '{name}' was not found"
+        if hint:
+            message = f"{message}; {hint}"
+        raise RuntimeError(message)
     return executable
 
 
@@ -51,7 +51,11 @@ def write_checksum(rom_path: Path) -> int:
     return checksum
 
 
-def validate_rom(rom_path: Path, asset_rom_path: Path) -> dict[str, int]:
+def load_layout(path: Path) -> AssetLayout:
+    return AssetLayout.from_json(json.loads(path.read_text(encoding="utf-8")))
+
+
+def validate_rom(rom_path: Path, asset_rom_path: Path, layout: AssetLayout) -> dict[str, int]:
     rom = rom_path.read_bytes()
     assets = asset_rom_path.read_bytes()
 
@@ -73,11 +77,11 @@ def validate_rom(rom_path: Path, asset_rom_path: Path) -> dict[str, int]:
 
     if not 0x00FF0000 <= stack_pointer <= 0x00FFFFFF:
         raise RuntimeError(f"invalid initial stack pointer: 0x{stack_pointer:08X}")
-    if not ROM_CHECKSUM_START <= reset_vector < TILE_DATA_OFFSET:
+    if not ROM_CHECKSUM_START <= reset_vector < layout.pack_offset:
         raise RuntimeError(f"invalid reset vector: 0x{reset_vector:08X}")
-    if not ROM_CHECKSUM_START <= hblank_vector < TILE_DATA_OFFSET:
+    if not ROM_CHECKSUM_START <= hblank_vector < layout.pack_offset:
         raise RuntimeError(f"invalid HBlank IRQ vector: 0x{hblank_vector:08X}")
-    if not ROM_CHECKSUM_START <= vblank_vector < TILE_DATA_OFFSET:
+    if not ROM_CHECKSUM_START <= vblank_vector < layout.pack_offset:
         raise RuntimeError(f"invalid VBlank IRQ vector: 0x{vblank_vector:08X}")
     if int.from_bytes(rom[0x1A0:0x1A4], "big") != 0:
         raise RuntimeError("ROM start field is not zero")
@@ -88,8 +92,8 @@ def validate_rom(rom_path: Path, asset_rom_path: Path) -> dict[str, int]:
             f"checksum mismatch: header=0x{stored_checksum:04X}, "
             f"calculated=0x{calculated_checksum:04X}"
         )
-    if rom[TILE_DATA_OFFSET:] != assets[TILE_DATA_OFFSET:]:
-        raise RuntimeError("final ROM tile blob differs from the generated asset ROM")
+    if rom[layout.pack_offset :] != assets[layout.pack_offset :]:
+        raise RuntimeError("final ROM asset pack differs from the generated asset ROM")
 
     return {
         "stack_pointer": stack_pointer,
@@ -97,7 +101,7 @@ def validate_rom(rom_path: Path, asset_rom_path: Path) -> dict[str, int]:
         "hblank_vector": hblank_vector,
         "vblank_vector": vblank_vector,
         "checksum": stored_checksum,
-        "tile_offset": TILE_DATA_OFFSET,
+        "pack_offset": layout.pack_offset,
     }
 
 
@@ -105,16 +109,108 @@ def escape_assembly_path(path: Path) -> str:
     return str(path.resolve()).replace("\\", "\\\\").replace('"', '\\"')
 
 
-def generate_blobs_assembly(output_path: Path, blob_path: Path) -> None:
+def generate_blobs_assembly(output_path: Path, pack_binary: Path, layout: AssetLayout) -> None:
+    """Emit one .assets section that mirrors the packed tail of the asset ROM."""
+    lines = [
+        "| Generated from the asset pack. Do not edit.\n",
+        '    .section .assets,"a",@progbits\n',
+        "    .balign 2\n",
+    ]
+    # The pack binary is the contiguous tail [pack_offset, rom_end). Symbols for
+    # individual blobs are relative labels for debugging only; runtime code uses
+    # the absolute offsets from AssetLayout.hpp.
+    cursor = 0
+    for blob in layout.blobs:
+        relative = blob.offset - layout.pack_offset
+        if relative < cursor:
+            raise RuntimeError("asset pack blobs are not ordered by offset")
+        if relative > cursor:
+            lines.append(f"    .space {relative - cursor}, 0xFF\n")
+            cursor = relative
+        symbol = f"asset_{blob.name}"
+        lines.append(f"    .globl {symbol}\n")
+        lines.append(f"{symbol}:\n")
+        # Include the full aligned span from the pack file so section size matches.
+        lines.append(
+            f'    .incbin "{escape_assembly_path(pack_binary)}",'
+            f"{relative},{blob.aligned_size}\n"
+        )
+        lines.append(f"    .globl {symbol}_end\n")
+        lines.append(f"{symbol}_end:\n")
+        cursor = relative + blob.aligned_size
+
+    if cursor != layout.pack_size:
+        raise RuntimeError("asset pack assembly size does not match layout")
+
+    output_path.write_text("".join(lines), encoding="utf-8")
+
+
+def generate_rom_ld(output_path: Path, layout: AssetLayout) -> None:
     output_path.write_text(
-        "| Generated from the raw asset ROM. Do not edit.\n"
-        '    .section .assets,"a",@progbits\n'
-        "    .balign 2\n"
-        "    .globl asset_tiles\n"
-        "asset_tiles:\n"
-        f'    .incbin "{escape_assembly_path(blob_path)}"\n'
-        "    .globl asset_tiles_end\n"
-        "asset_tiles_end:\n",
+        f"""OUTPUT_FORMAT("elf32-m68k")
+OUTPUT_ARCH(m68k)
+ENTRY(reset_entry)
+
+/* Generated by tools/build_megadrive_rom.py from asset_layout.json. */
+
+SECTIONS
+{{
+    . = 0x000000;
+    .vectors :
+    {{
+        KEEP(*(.vectors))
+    }}
+    ASSERT(SIZEOF(.vectors) == 0x100, "invalid Mega Drive vector table size")
+
+    . = 0x000100;
+    .rom_header :
+    {{
+        KEEP(*(.rom_header))
+    }}
+    ASSERT(SIZEOF(.rom_header) == 0x100, "invalid Mega Drive ROM header size")
+
+    . = 0x000200;
+    .startup :
+    {{
+        *(.startup)
+    }}
+    .text :
+    {{
+        *(.text .text.*)
+        *(.rodata .rodata.*)
+        *(.data.rel.ro .data.rel.ro.*)
+        *(.data .data.*)
+        *(.init_array .init_array.*)
+    }}
+    . = ALIGN(2);
+    __code_end = .;
+    ASSERT(__code_end <= 0x{layout.pack_offset:06X}, "game code overlaps the asset pack")
+
+    . = 0x{layout.pack_offset:06X};
+    .assets :
+    {{
+        KEEP(*(.assets))
+    }}
+    ASSERT(SIZEOF(.assets) == {layout.pack_size}, "unexpected asset pack size")
+    __rom_end = .;
+    ASSERT(__rom_end == 0x400000, "ROM must end at 4 MiB")
+
+    .bss 0x00FF0000 (NOLOAD) :
+    {{
+        *(.bss .bss.*)
+        *(COMMON)
+    }}
+    ASSERT(SIZEOF(.bss) == 0, "cartridge code must not require BSS initialization")
+
+    /DISCARD/ :
+    {{
+        *(.comment)
+        *(.note .note.*)
+        *(.eh_frame .eh_frame.*)
+        *(.debug .debug.*)
+    }}
+}}
+""",
         encoding="utf-8",
     )
 
@@ -123,6 +219,7 @@ def generate_combined_cpp(output_path: Path, repository: Path) -> None:
     sources = (
         repository / "src" / "Memory-MD.cpp",
         repository / "src" / "BoingBallDemo.cpp",
+        repository / "src" / "BoingBallFmSfx.cpp",
         repository / "src" / "ControllerReader.cpp",
         repository / "src" / "GameSession.cpp",
         repository / "src" / "PsgSoundEffects.cpp",
@@ -138,6 +235,10 @@ def generate_combined_cpp(output_path: Path, repository: Path) -> None:
 
 def build(args: argparse.Namespace) -> None:
     repository = Path(__file__).resolve().parent.parent
+    tools_dir = repository / "tools"
+    if str(tools_dir) not in sys.path:
+        sys.path.insert(0, str(tools_dir))
+
     build_dir = args.build_dir.resolve()
     generated_dir = build_dir / "generated"
     generated_dir.mkdir(parents=True, exist_ok=True)
@@ -146,31 +247,51 @@ def build(args: argparse.Namespace) -> None:
     output_rom = args.output.resolve()
     output_rom.parent.mkdir(parents=True, exist_ok=True)
 
-    cxx = require_tool(f"{args.tool_prefix}g++")
-    assembler = require_tool(args.assembler or f"{args.tool_prefix}as")
+    layout_header = args.layout_header.resolve()
+    layout_json = args.layout_json.resolve()
+    pack_binary = args.pack_binary.resolve()
+    assets_work = args.assets_work_dir.resolve()
+
+    cxx = require_tool(
+        f"{args.tool_prefix}g++",
+        hint="on macOS run 'brew install m68k-elf-gcc'",
+    )
+    assembler = require_tool(
+        args.assembler or f"{args.tool_prefix}as",
+        hint="on macOS run 'brew install m68k-elf-binutils'",
+    )
     linker = require_tool(f"{args.tool_prefix}ld")
     objcopy = require_tool(f"{args.tool_prefix}objcopy")
+    require_tool("z80asm", hint="on macOS run 'brew install z80asm'")
 
     run(
         [
             sys.executable,
-            str(repository / "tools" / "build_asset_rom.py"),
+            str(repository / "tools" / "build_assets.py"),
             "--output",
             str(asset_rom),
             "--font-data",
             str(args.font_data.resolve()),
+            "--work-dir",
+            str(assets_work),
+            "--layout-header",
+            str(layout_header),
+            "--layout-json",
+            str(layout_json),
+            "--pack-binary",
+            str(pack_binary),
         ],
         cwd=repository,
     )
 
-    expected_tiles = build_tile_data(args.font_data.resolve())
-    if asset_rom.read_bytes()[TILE_DATA_OFFSET:] != expected_tiles:
-        raise RuntimeError("asset ROM verification failed before real-hardware build")
+    layout = load_layout(layout_json)
+    if asset_rom.read_bytes()[layout.pack_offset :] != pack_binary.read_bytes():
+        raise RuntimeError("asset ROM pack tail does not match pack binary")
 
     combined_cpp = generated_dir / "code.cpp"
     code_assembly = generated_dir / "code.s"
     blobs_assembly = generated_dir / "blobs.s"
-    blob_binary = generated_dir / "assets.bin"
+    rom_ld = generated_dir / "rom.ld"
     header_object = build_dir / "header.o"
     code_object = build_dir / "code.o"
     blobs_object = build_dir / "blobs.o"
@@ -178,8 +299,8 @@ def build(args: argparse.Namespace) -> None:
     map_path = build_dir / "MegaDriveEnvironmentSampleGame.map"
 
     generate_combined_cpp(combined_cpp, repository)
-    blob_binary.write_bytes(asset_rom.read_bytes()[TILE_DATA_OFFSET:])
-    generate_blobs_assembly(blobs_assembly, blob_binary)
+    generate_blobs_assembly(blobs_assembly, pack_binary, layout)
+    generate_rom_ld(rom_ld, layout)
 
     run(
         [
@@ -205,6 +326,8 @@ def build(args: argparse.Namespace) -> None:
             "-fno-ident",
             "-I",
             str(repository / "include"),
+            "-I",
+            str(layout_header.parent),
             "-S",
             str(combined_cpp),
             "-o",
@@ -227,7 +350,7 @@ def build(args: argparse.Namespace) -> None:
             linker,
             "--gc-sections",
             "-T",
-            str(repository / "megadrive" / "rom.ld"),
+            str(rom_ld),
             "-Map",
             str(map_path),
             "-o",
@@ -252,12 +375,15 @@ def build(args: argparse.Namespace) -> None:
     )
 
     checksum = write_checksum(output_rom)
-    details = validate_rom(output_rom, asset_rom)
+    details = validate_rom(output_rom, asset_rom, layout)
+    tiles = layout.blob("tiles")
+    z80 = layout.blob("z80_boing_ball_sfx")
     print(
         f"Wrote {output_rom}: {ROM_SIZE} bytes, checksum 0x{checksum:04X}, "
         f"reset 0x{details['reset_vector']:06X}, IRQ4/6 "
-        f"0x{details['hblank_vector']:06X}/0x{details['vblank_vector']:06X}, tiles at "
-        f"0x{details['tile_offset']:06X}-0x{ROM_SIZE - 1:06X}"
+        f"0x{details['hblank_vector']:06X}/0x{details['vblank_vector']:06X}, "
+        f"assets at 0x{details['pack_offset']:06X}-0x{ROM_SIZE - 1:06X} "
+        f"(z80={z80.size}, tiles={tiles.size})"
     )
     print(f"Assembly inputs: {repository / 'megadrive' / 'header.s'}")
     print(f"                 {code_assembly}")
@@ -266,6 +392,7 @@ def build(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     repository = Path(__file__).resolve().parent.parent
+    default_generated = repository / "build" / "generated"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--build-dir",
@@ -277,7 +404,27 @@ def parse_args() -> argparse.Namespace:
         "--asset-rom",
         type=Path,
         default=repository / "build" / "sample_game_assets.bin",
-        help="raw asset-only ROM produced by build_asset_rom.py",
+        help="raw asset ROM produced by build_assets.py",
+    )
+    parser.add_argument(
+        "--layout-header",
+        type=Path,
+        default=default_generated / "AssetLayout.hpp",
+    )
+    parser.add_argument(
+        "--layout-json",
+        type=Path,
+        default=default_generated / "asset_layout.json",
+    )
+    parser.add_argument(
+        "--pack-binary",
+        type=Path,
+        default=default_generated / "asset_pack.bin",
+    )
+    parser.add_argument(
+        "--assets-work-dir",
+        type=Path,
+        default=default_generated / "assets",
     )
     parser.add_argument(
         "--output",
@@ -312,9 +459,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    tools_dir = Path(__file__).resolve().parent
+    if str(tools_dir) not in sys.path:
+        sys.path.insert(0, str(tools_dir))
     try:
         build(parse_args())
-    except (OSError, RuntimeError, subprocess.CalledProcessError, ValueError) as error:
+    except (OSError, RuntimeError, subprocess.CalledProcessError, ValueError, KeyError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0

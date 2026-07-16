@@ -1,3 +1,10 @@
+/* Static reference linker script.
+ *
+ * The real-hardware builder regenerates build/megadrive/generated/rom.ld from
+ * asset_layout.json so pack offsets track the multi-blob asset image. Keep this
+ * file only as a readable template; do not link against it directly.
+ */
+
 OUTPUT_FORMAT("elf32-m68k")
 OUTPUT_ARCH(m68k)
 ENTRY(reset_entry)
@@ -33,14 +40,14 @@ SECTIONS
     }
     . = ALIGN(2);
     __code_end = .;
-    ASSERT(__code_end <= 0x3FF360, "game code overlaps the tile blobs")
+    /* Pack offset is filled in by tools/build_megadrive_rom.py. */
+    ASSERT(__code_end <= 0x3FF000, "game code overlaps the asset pack (see generated rom.ld)")
 
-    . = 0x3FF360;
+    . = 0x3FF000;
     .assets :
     {
         KEEP(*(.assets))
     }
-    ASSERT(SIZEOF(.assets) == 3232, "unexpected tile blob size")
     __rom_end = .;
     ASSERT(__rom_end == 0x400000, "ROM must end at 4 MiB")
 

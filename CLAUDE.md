@@ -66,8 +66,13 @@ cmake -S . -B build \
   not SDL or `Controllers::getCurrentState()` directly.
 - Keep command-line processing dependency-free; extend the manual parser in
   `src/main-PC.cpp` instead of adding CLI11 or another argument library.
-- `tools/build_asset_rom.py` owns the raw, headerless asset ROM layout. The
-  separate real-hardware builder embeds its trailing tile blob in a bootable ROM.
+- `tools/build_assets.py` owns the raw, headerless 32-Mbit asset ROM: it
+  assembles Z80 sources with `z80asm`, packs named blobs (Z80 driver, VDP
+  tiles, …) at the end of the image, and emits `AssetLayout.hpp` plus
+  `asset_layout.json`. `tools/build_asset_rom.py` remains a thin compatibility
+  wrapper. The real-hardware builder embeds the packed tail in a bootable ROM.
+- Install `z80asm` (https://www.nongnu.org/z80asm/, e.g. `brew install z80asm`)
+  for any build that regenerates assets.
 - Keep the hand-written vector table and Sega header in `megadrive/header.s`.
   `code.s` and `blobs.s` are generated build artifacts and must not be committed.
 - Never execute the `MEGADRIVE` branch of `Memory.hpp` on the
@@ -77,4 +82,6 @@ cmake -S . -B build \
   fixed-capacity storage.
 - Preserve the Work RAM reservations at `$FF0000-$FF0005` for the IRQ bridge
   and `$FF1000-$FF2FFF` for `BoingBallDemo`'s dynamic tile/DMA buffer.
+- Boing Ball bounce SFX use the Z80/YM2612 path (`z80/boing_ball_sfx.s` +
+  `BoingBallFmSfx`); the main game keeps `PsgSoundEffects` on the SN76489.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

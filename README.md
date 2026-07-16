@@ -28,7 +28,7 @@ Start there to return.
   software, then drawing them on separate planes;
 - switching the checker texture between theta-only and phi-only rotation at
   opposite side-wall impacts;
-- playing distinct PSG impacts for the floor and side walls;
+- playing distinct Boing Ball floor/wall impacts through a Z80/YM2612 driver;
 - configuring the VDP for H40 / Mode 5 output;
 - loading palettes, font data, and 4-bpp tiles;
 - drawing Plane A/Plane B text and backgrounds;
@@ -36,10 +36,12 @@ Start there to return.
 - reading Player 1 through the memory-mapped controller ports;
 - modelling the player, collectible, enemy, collisions, and game session with
   portable C++ objects shared by both targets;
-- playing SN76489 PSG effects through the memory-mapped sound port;
+- playing SN76489 PSG effects for the main game through the memory-mapped port;
+- loading a Z80 program from the asset ROM, bus-requesting the sub-CPU, and
+  posting FM commands through a Z80 RAM mailbox;
 - running the exact same interrupt-driven game callbacks and VDP renderer on
   both targets through one 24-bit memory API;
-- generating and loading a raw 32-Mbit asset ROM;
+- packing named assets (Z80 driver, VDP tiles) into a raw 32-Mbit image;
 - compiling the C++ game to M68000 assembly and producing a bootable ROM for
   real hardware.
 
@@ -70,8 +72,9 @@ corner tiles; changing the continuous zoom safely rebuilds that occupancy mask.
 The renderer also builds the wall's nine repeating patterns and all 320
 perspective-floor patterns in software; it does not reuse the sample game's
 authored floor tile. Plane B draws the upright grid and the Window plane draws
-the perspective floor below the horizon. Floor and wall impacts trigger
-distinct SN76489 PSG effects.
+the perspective floor below the horizon. Floor and wall impacts are handled by
+a small Z80 program (`z80/boing_ball_sfx.s`) that programs the YM2612; the 68000
+only bus-requests the Z80 and writes a one-byte command mailbox.
 
 To stay within the real 68000/VDP budget, the renderer writes one bounded
 8192-byte tile buffer at `$FF1000-$FF2FFF`. DMA and bank swaps happen at the
@@ -138,9 +141,10 @@ The scripts resolve paths relative to their own location, so they can be called
 from any working directory. `configure_controls.sh` and `run_pc.sh` use the
 same project-root `controls.yaml`.
 
-`build_pc.sh` first runs `tools/build_asset_rom.py` to generate the raw 32-Mbit
-ROM at `build/sample_game_assets.bin`, then configures and compiles the PC
-executable.
+`build_pc.sh` first runs `tools/build_assets.py` (assembles the Z80 driver with
+`z80asm`, packs tiles and the driver into `build/sample_game_assets.bin`, and
+emits `build/generated/AssetLayout.hpp`), then configures and compiles the PC
+executable. Install `z80asm` first (`brew install z80asm` on macOS).
 
 Environment variables customize the PC build:
 
@@ -227,23 +231,27 @@ The equivalent direct executable command remains available:
 
 ## Raw asset ROM
 
-`tools/build_asset_rom.py` generates `build/sample_game_assets.bin`. It is a
-raw 4 MiB (32 Mbit) image filled with `0xFF`: it contains no executable code,
-ROM header, manifest, vectors, or checksum.
+`tools/build_assets.py` generates `build/sample_game_assets.bin`. It is a raw
+4 MiB (32 Mbit) image filled with `0xFF`: it contains no 68000 executable code,
+ROM header, manifest, vectors, or checksum. Named blobs are packed at the end
+of the image (last blob at `$3FFFFF`); today that is the Boing Ball Z80 driver
+followed by the VDP tile set. Offsets and sizes are written to
+`build/generated/AssetLayout.hpp` and `asset_layout.json` so both targets and
+the Mega Drive linker script stay in sync without hard-coded sizes.
 
-The 95 font tiles followed by the player, gem, and floor tiles occupy the final
-3232 bytes, at `$3FF360-$3FFFFF`. This keeps the lower ROM area available for
-the real-hardware executable code. CMake runs the script automatically, and the
-environment loads the generated binary before `SampleGame::initialize()`.
+`tools/build_asset_rom.py` remains a thin compatibility wrapper around the same
+builder. CMake runs the packer automatically, and the environment loads the
+generated binary before `SampleGame::initialize()`.
 
 Run the script directly with:
 
 ```bash
-python3 tools/build_asset_rom.py \
+python3 tools/build_assets.py \
   --output build/sample_game_assets.bin
 ```
 
-An alternative image can be selected with `--rom FILE`.
+Requires `z80asm` on `PATH`. An alternative image can be selected with
+`--rom FILE`.
 
 ## One memory API, target-specific cost
 
@@ -408,10 +416,12 @@ later without changing game code.
   collision rules, scoring, and game-over state.
 - `PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
   gem, colliding with the enemy, and restarting.
+- `BoingBallFmSfx.hpp` loads the Z80/YM2612 Boing Ball bounce driver and posts
+  mailbox commands; the driver source is `z80/boing_ball_sfx.s`.
 - `VdpUtils` contains shared memory-mapped VDP operations.
 - `megadrive/header.s` contains the real-hardware IRQ4/IRQ6 bridges.
-- `tools/build_megadrive_rom.py` builds and validates the ROM image for real
-  hardware.
+- `tools/build_assets.py` packs ROM blobs and generates layout metadata;
+  `tools/build_megadrive_rom.py` builds and validates the bootable ROM.
 - `Memory.hpp` is the only memory header; `Memory-PC.cpp` and `Memory-MD.cpp`
   provide the two target implementations.
 - `ControllerReader.hpp` decodes controllers through that contract.

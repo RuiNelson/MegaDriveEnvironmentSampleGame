@@ -11,9 +11,14 @@ if [[ "${BUILD_DIR}" != /* ]]; then
     BUILD_DIR="${ROOT_DIR}/${BUILD_DIR}"
 fi
 
-"${PYTHON3}" "${ROOT_DIR}/tools/build_asset_rom.py" \
+"${PYTHON3}" "${ROOT_DIR}/tools/build_assets.py" \
     --output "${BUILD_DIR}/sample_game_assets.bin" \
-    --font-data "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
+    --font-data "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp" \
+    --z80-source "${ROOT_DIR}/z80/boing_ball_sfx.s" \
+    --work-dir "${BUILD_DIR}/generated/assets" \
+    --layout-header "${BUILD_DIR}/generated/AssetLayout.hpp" \
+    --layout-json "${BUILD_DIR}/generated/asset_layout.json" \
+    --pack-binary "${BUILD_DIR}/generated/asset_pack.bin"
 
 cmake_args=(
     -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"

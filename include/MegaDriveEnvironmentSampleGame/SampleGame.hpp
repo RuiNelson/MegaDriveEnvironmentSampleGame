@@ -7,6 +7,7 @@
 
 #include "MegaDriveEnvironmentSampleGame/ControllerReader.hpp"
 #include "MegaDriveEnvironmentSampleGame/BoingBallDemo.hpp"
+#include "MegaDriveEnvironmentSampleGame/BoingBallFmSfx.hpp"
 #include "MegaDriveEnvironmentSampleGame/GameSession.hpp"
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
 #include "MegaDriveEnvironmentSampleGame/PsgSoundEffects.hpp"
@@ -25,7 +26,7 @@ class SampleGame final {
     /** Retains `memory` by reference; the backend must outlive the game. */
     explicit SampleGame(memory::Memory &memory);
 
-    /** Configures the controller, PSG, VDP and initial scene. */
+    /** Configures the controller, PSG, Z80 FM demo driver, VDP and initial scene. */
     void initialize();
 
     /** Advances input, gameplay, sound and rendering once per VBlank IRQ. */
@@ -64,14 +65,16 @@ class SampleGame final {
     /** Writes one contiguous block of Plane B per-scanline wave offsets. */
     void writeBackgroundWaveBlock(int firstScanline);
 
-    /** Shared bus used for ROM, controller, PSG and VDP accesses. */
+    /** Shared bus used for ROM, controller, audio and VDP accesses. */
     memory::Memory &memory_;
     /** Memory-mapped three-button controller decoder. */
     controllers::ControllerReader player1Controller_;
     /** Platform-independent entities, scoring, collision and phase state. */
     game::GameSession session_;
-    /** Frame-driven SN76489 effect sequencer. */
+    /** Frame-driven SN76489 effect sequencer for the main game. */
     audio::PsgSoundEffects soundEffects_;
+    /** Z80/YM2612 bounce effects used only by the Boing Ball demo. */
+    audio::BoingBallFmSfx boingBallFmSfx_;
     /** Shared fixed-point and software-rendered Start-screen demo. */
     demo::BoingBallDemo boingBallDemo_;
     /** Moves the Plane B wave vertically without scrolling Plane A. */
