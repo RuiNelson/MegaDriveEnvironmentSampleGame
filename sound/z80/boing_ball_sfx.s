@@ -1,7 +1,7 @@
 ; Boing Ball demo sound driver for the Mega Drive Z80.
 ; Assembled with z80asm (https://www.nongnu.org/z80asm/).
 ;
-; Streams sound/amiga_assets/boing_pcm.bin (from tools/convert_boing_pcm.py)
+; Streams sound/amiga_assets/boing_pcm.bin (from sound/tools/convert_boing_pcm.py)
 ; through the YM2612 channel-6 DAC. Unsigned 8-bit @ 8000 Hz, centre 0x80.
 ;
 ; Z80 RAM (visible to the 68000 at $A00000):

@@ -57,7 +57,7 @@ else()
             "${SAMPLE_ASSET_LAYOUT_JSON}"
             "${SAMPLE_ASSET_PACK_BIN}"
         COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tools/convert_boing_pcm.py"
+                "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/convert_boing_pcm.py"
                 --input "${SAMPLE_BOING_SAMPLES}"
                 --output "${SAMPLE_BOING_PCM}"
                 --target-rate 8000
@@ -74,10 +74,10 @@ else()
         DEPENDS
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_assets.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_pack.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/assemble_z80.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/boing_pcm.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/convert_boing_pcm.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/tiles.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/assemble_z80.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/boing_pcm.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/sound/tools/convert_boing_pcm.py"
             "${SAMPLE_FONT_DATA}"
             "${SAMPLE_Z80_SOURCE}"
             "${SAMPLE_BOING_SAMPLES}"

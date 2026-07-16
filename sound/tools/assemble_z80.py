@@ -48,7 +48,8 @@ def assemble_z80(source: Path, output: Path, *, list_file: Path | None = None) -
 
 
 def parse_args() -> argparse.Namespace:
-    repository = Path(__file__).resolve().parent.parent
+    # sound/tools/ -> sound/ -> repository root
+    repository = Path(__file__).resolve().parent.parent.parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--source",

@@ -67,9 +67,10 @@ cmake -S . -B build \
 - Keep command-line processing dependency-free; extend the manual parser in
   `src/main-PC.cpp` instead of adding CLI11 or another argument library.
 - `tools/build_assets.py` owns the raw, headerless 32-Mbit asset ROM: it
-  assembles Z80 sources with `z80asm`, packs named blobs (Z80 driver, VDP
-  tiles, …) at the end of the image, and emits `AssetLayout.hpp` plus
-  `asset_layout.json`. `tools/build_asset_rom.py` remains a thin compatibility
+  assembles Z80 sources (via `sound/tools/assemble_z80.py`), packs named blobs
+  (PCM, Z80 driver, VDP tiles, …) at the end of the image, and emits
+  `AssetLayout.hpp` plus `asset_layout.json`. Sound conversion lives under
+  `sound/tools/`. `tools/build_asset_rom.py` remains a thin compatibility
   wrapper. The real-hardware builder embeds the packed tail in a bootable ROM.
 - Install `z80asm` (https://www.nongnu.org/z80asm/, e.g. `brew install z80asm`)
   for any build that regenerates assets.

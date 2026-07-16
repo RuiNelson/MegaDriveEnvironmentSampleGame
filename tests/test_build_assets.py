@@ -12,6 +12,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "tools"))
+sys.path.insert(0, str(REPOSITORY / "sound" / "tools"))
 
 from assemble_z80 import assemble_z80  # noqa: E402
 from asset_pack import AssetBlob, AssetLayout, pack_blobs  # noqa: E402
@@ -53,7 +54,7 @@ def main() -> int:
         subprocess.run(
             [
                 sys.executable,
-                str(REPOSITORY / "tools" / "convert_boing_pcm.py"),
+                str(REPOSITORY / "sound" / "tools" / "convert_boing_pcm.py"),
                 "--input",
                 str(boing_samples),
                 "--output",

@@ -11,7 +11,7 @@ http://amiga.filfre.net/misc/Chapter2/boing.samples
 **Generated** — do not hand-edit. Produced by:
 
 ```bash
-python3 tools/convert_boing_pcm.py \
+python3 sound/tools/convert_boing_pcm.py \
   --input sound/amiga_assets/boing.samples \
   --output sound/amiga_assets/boing_pcm.bin \
   --source-rate 14037.43 \

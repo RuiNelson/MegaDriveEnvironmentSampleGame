@@ -16,8 +16,14 @@ import argparse
 import sys
 from pathlib import Path
 
-from assemble_z80 import assemble_z80
-from asset_pack import (
+_TOOLS_DIR = Path(__file__).resolve().parent
+_SOUND_TOOLS_DIR = _TOOLS_DIR.parent / "sound" / "tools"
+for _path in (_TOOLS_DIR, _SOUND_TOOLS_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+from assemble_z80 import assemble_z80  # noqa: E402
+from asset_pack import (  # noqa: E402
     ROM_SIZE,
     AssetBlob,
     pack_blobs,
@@ -26,9 +32,8 @@ from asset_pack import (
     write_layout_json,
     write_pack_binary,
 )
-from boing_pcm import load_boing_pcm
-from tiles import build_tile_data
-
+from boing_pcm import load_boing_pcm  # noqa: E402
+from tiles import build_tile_data  # noqa: E402
 
 
 def repository_root() -> Path:
@@ -159,10 +164,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    tools_dir = Path(__file__).resolve().parent
-    if str(tools_dir) not in sys.path:
-        sys.path.insert(0, str(tools_dir))
-
     args = parse_args()
     image, layout, z80_binary = build_asset_image(
         font_data_path=args.font_data.resolve(),

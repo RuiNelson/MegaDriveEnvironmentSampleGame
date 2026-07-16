@@ -281,7 +281,7 @@ def build(args: argparse.Namespace) -> None:
     run(
         [
             sys.executable,
-            str(repository / "tools" / "convert_boing_pcm.py"),
+            str(repository / "sound" / "tools" / "convert_boing_pcm.py"),
             "--input",
             str(boing_samples),
             "--output",

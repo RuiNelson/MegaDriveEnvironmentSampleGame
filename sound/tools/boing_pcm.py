@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-# Must match tools/convert_boing_pcm.py DEFAULT_TARGET_RATE and Z80 delays.
+# Must match sound/tools/convert_boing_pcm.py DEFAULT_TARGET_RATE and Z80 delays.
 TARGET_RATE_HZ = 8000
 
 
@@ -19,6 +19,7 @@ def load_boing_pcm(path: Path) -> bytes:
     mean_signed = sum(as_signed) / len(as_signed)
     if abs(mean_signed) < 8:
         raise ValueError(
-            f"{path} looks like Amiga signed PCM; run tools/convert_boing_pcm.py first"
+            f"{path} looks like Amiga signed PCM; "
+            "run sound/tools/convert_boing_pcm.py first"
         )
     return raw

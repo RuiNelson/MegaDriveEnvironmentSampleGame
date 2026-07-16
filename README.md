@@ -74,7 +74,7 @@ perspective-floor patterns in software; it does not reuse the sample game's
 authored floor tile. Plane B draws the upright grid and the Window plane draws
 the perspective floor below the horizon. Floor and wall impacts play the
 **original Amiga Boing sample** under `sound/amiga_assets/`, converted offline by
-`tools/convert_boing_pcm.py` (signed 8-bit @ Paula period-255 ≈14 kHz →
+`sound/tools/convert_boing_pcm.py` (signed 8-bit @ Paula period-255 ≈14 kHz →
 low-pass + resample → unsigned 8-bit @ **8 kHz** for the YM2612 DAC). The Z80
 driver in `sound/z80/` streams `boing_pcm.bin` from the cartridge bank window;
 wall hits run the same PCM faster (Amiga period 160/255 ratio). The 68000 only

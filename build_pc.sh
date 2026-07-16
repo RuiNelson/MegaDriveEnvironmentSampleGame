@@ -11,7 +11,7 @@ if [[ "${BUILD_DIR}" != /* ]]; then
     BUILD_DIR="${ROOT_DIR}/${BUILD_DIR}"
 fi
 
-"${PYTHON3}" "${ROOT_DIR}/tools/convert_boing_pcm.py" \
+"${PYTHON3}" "${ROOT_DIR}/sound/tools/convert_boing_pcm.py" \
     --input "${ROOT_DIR}/sound/amiga_assets/boing.samples" \
     --output "${ROOT_DIR}/sound/amiga_assets/boing_pcm.bin" \
     --target-rate 8000

@@ -16,7 +16,7 @@ This script:
 
 Example::
 
-    python3 tools/convert_boing_pcm.py \\
+    python3 sound/tools/convert_boing_pcm.py \\
         --input sound/amiga_assets/boing.samples \\
         --output sound/amiga_assets/boing_pcm.bin
 """
@@ -166,7 +166,8 @@ def convert_amiga_to_ym_dac(
 
 
 def parse_args() -> argparse.Namespace:
-    repository = Path(__file__).resolve().parent.parent
+    # sound/tools/ -> sound/ -> repository root
+    repository = Path(__file__).resolve().parent.parent.parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--input",
