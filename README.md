@@ -73,11 +73,11 @@ The renderer also builds the wall's nine repeating patterns and all 320
 perspective-floor patterns in software; it does not reuse the sample game's
 authored floor tile. Plane B draws the upright grid and the Window plane draws
 the perspective floor below the horizon. Floor and wall impacts play the
-**original Amiga Boing sample**, converted offline by
+**original Amiga Boing sample** under `sound/amiga_assets/`, converted offline by
 `tools/convert_boing_pcm.py` (signed 8-bit @ Paula period-255 ≈14 kHz →
 low-pass + resample → unsigned 8-bit @ **8 kHz** for the YM2612 DAC). The Z80
-driver streams `assets/boing_pcm.bin` from the cartridge bank window; wall hits
-run the same PCM faster (Amiga period 160/255 ratio). The 68000 only
+driver in `sound/z80/` streams `boing_pcm.bin` from the cartridge bank window;
+wall hits run the same PCM faster (Amiga period 160/255 ratio). The 68000 only
 bus-requests the Z80, installs bank/pointer/length, and posts a mailbox byte.
 
 To stay within the real 68000/VDP budget, the renderer writes one bounded
@@ -421,7 +421,7 @@ later without changing game code.
 - `PsgSoundEffects.hpp` contains the shared PSG effects for collecting a
   gem, colliding with the enemy, and restarting.
 - `BoingBallFmSfx.hpp` loads the Z80/YM2612 Boing Ball bounce driver and posts
-  mailbox commands; the driver source is `z80/boing_ball_sfx.s`.
+  mailbox commands; the driver source is `sound/z80/boing_ball_sfx.s`.
 - `VdpUtils` contains shared memory-mapped VDP operations.
 - `megadrive/header.s` contains the real-hardware IRQ4/IRQ6 bridges.
 - `tools/build_assets.py` packs ROM blobs and generates layout metadata;

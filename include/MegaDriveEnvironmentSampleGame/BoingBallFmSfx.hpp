@@ -20,7 +20,7 @@ namespace sample::audio {
  */
 class BoingBallFmSfx final {
   public:
-    /** Command bytes written to the Z80 mailbox (must match z80/boing_ball_sfx.s). */
+    /** Command bytes written to the Z80 mailbox (must match sound/z80/boing_ball_sfx.s). */
     static constexpr std::uint8_t kCommandIdle = 0;
     static constexpr std::uint8_t kCommandFloor = 1;
     static constexpr std::uint8_t kCommandWall = 2;

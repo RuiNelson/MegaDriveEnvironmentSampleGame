@@ -276,8 +276,8 @@ def build(args: argparse.Namespace) -> None:
     objcopy = require_tool(f"{args.tool_prefix}objcopy")
     require_tool("z80asm", hint="on macOS run 'brew install z80asm'")
 
-    boing_samples = repository / "assets" / "boing.samples"
-    boing_pcm = repository / "assets" / "boing_pcm.bin"
+    boing_samples = repository / "sound" / "amiga_assets" / "boing.samples"
+    boing_pcm = repository / "sound" / "amiga_assets" / "boing_pcm.bin"
     run(
         [
             sys.executable,

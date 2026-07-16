@@ -1,4 +1,4 @@
-# Assets
+# Amiga sound assets
 
 ## `boing.samples`
 
@@ -12,8 +12,8 @@ http://amiga.filfre.net/misc/Chapter2/boing.samples
 
 ```bash
 python3 tools/convert_boing_pcm.py \
-  --input assets/boing.samples \
-  --output assets/boing_pcm.bin \
+  --input sound/amiga_assets/boing.samples \
+  --output sound/amiga_assets/boing_pcm.bin \
   --source-rate 14037.43 \
   --target-rate 8000
 ```
@@ -28,5 +28,5 @@ Pipeline:
 6. Peak-normalise to 90%  
 7. Quantise to YM2612 unsigned 8-bit (silence = `0x80`)
 
-The Z80 driver streams this file at 8 kHz (floor) or ≈12.6 kHz (wall, Amiga
-period 160/255 pitch ratio).
+The Z80 driver in `sound/z80/` streams this file at 8 kHz (floor) or ≈12.6 kHz
+(wall, Amiga period 160/255 pitch ratio).

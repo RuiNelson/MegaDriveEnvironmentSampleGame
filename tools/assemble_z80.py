@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--source",
         type=Path,
-        default=repository / "z80" / "boing_ball_sfx.s",
+        default=repository / "sound" / "z80" / "boing_ball_sfx.s",
         help="Z80 assembly source",
     )
     parser.add_argument(

@@ -17,8 +17,8 @@ This script:
 Example::
 
     python3 tools/convert_boing_pcm.py \\
-        --input assets/boing.samples \\
-        --output assets/boing_pcm.bin
+        --input sound/amiga_assets/boing.samples \\
+        --output sound/amiga_assets/boing_pcm.bin
 """
 
 from __future__ import annotations
@@ -171,13 +171,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         type=Path,
-        default=repository / "assets" / "boing.samples",
+        default=repository / "sound" / "amiga_assets" / "boing.samples",
         help="Amiga signed 8-bit PCM (boing.samples)",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=repository / "assets" / "boing_pcm.bin",
+        default=repository / "sound" / "amiga_assets" / "boing_pcm.bin",
         help="YM2612 unsigned 8-bit PCM output",
     )
     parser.add_argument(

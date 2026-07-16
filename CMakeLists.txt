@@ -34,9 +34,9 @@ set(SAMPLE_ASSETS_WORK_DIR "${SAMPLE_GENERATED_DIR}/assets")
 set(SAMPLE_FONT_DATA
     "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp"
 )
-set(SAMPLE_Z80_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/z80/boing_ball_sfx.s")
-set(SAMPLE_BOING_SAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/assets/boing.samples")
-set(SAMPLE_BOING_PCM "${CMAKE_CURRENT_SOURCE_DIR}/assets/boing_pcm.bin")
+set(SAMPLE_Z80_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/sound/z80/boing_ball_sfx.s")
+set(SAMPLE_BOING_SAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/sound/amiga_assets/boing.samples")
+set(SAMPLE_BOING_PCM "${CMAKE_CURRENT_SOURCE_DIR}/sound/amiga_assets/boing_pcm.bin")
 
 option(SAMPLE_ASSET_ROM_PREBUILT "Asset ROM was generated before CMake build" OFF)
 if(SAMPLE_ASSET_ROM_PREBUILT)

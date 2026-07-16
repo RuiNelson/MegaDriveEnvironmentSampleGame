@@ -82,9 +82,9 @@ cmake -S . -B build \
   fixed-capacity storage.
 - Preserve the Work RAM reservations at `$FF0000-$FF0005` for the IRQ bridge
   and `$FF1000-$FF2FFF` for `BoingBallDemo`'s dynamic tile/DMA buffer.
-- Boing Ball bounce SFX stream the Amiga `boing_pcm` sample via Z80 + YM2612
-  DAC (`z80/boing_ball_sfx.s` + `BoingBallFmSfx` + `assets/boing_pcm.bin`).
-  The main game keeps `PsgSoundEffects` on the SN76489. Shared audio code is
-  memory-mapped only (`$C00011`, `$A00000`, `$A11100`, `$A11200`, Z80 bank
-  `$6000`, YM `$4000`); do not call host sound/Z80 APIs.
+- Boing Ball bounce SFX stream `sound/amiga_assets/boing_pcm.bin` via Z80 +
+  YM2612 DAC (`sound/z80/boing_ball_sfx.s` + `BoingBallFmSfx`). The main game
+  keeps `PsgSoundEffects` on the SN76489. Shared audio code is memory-mapped
+  only (`$C00011`, `$A00000`, `$A11100`, `$A11200`, Z80 bank `$6000`, YM
+  `$4000`); do not call host sound/Z80 APIs.
 - Do not commit build outputs, fetched dependencies, screenshots, or caches.

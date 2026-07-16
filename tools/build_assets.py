@@ -29,7 +29,6 @@ from asset_pack import (
 from boing_pcm import load_boing_pcm
 from tiles import build_tile_data
 
-# convert_boing_pcm is the only path that produces assets/boing_pcm.bin
 
 
 def repository_root() -> Path:
@@ -123,14 +122,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--z80-source",
         type=Path,
-        default=repository / "z80" / "boing_ball_sfx.s",
+        default=repository / "sound" / "z80" / "boing_ball_sfx.s",
         help="Boing Ball Z80 driver assembly source",
     )
     parser.add_argument(
         "--boing-pcm",
         type=Path,
-        default=repository / "assets" / "boing_pcm.bin",
-        help="Amiga Boing impact sample (unsigned 8-bit or signed Amiga PCM)",
+        default=repository / "sound" / "amiga_assets" / "boing_pcm.bin",
+        help="Boing Ball impact PCM (unsigned 8-bit YM2612 DAC data)",
     )
     parser.add_argument(
         "--work-dir",

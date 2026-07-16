@@ -12,15 +12,15 @@ if [[ "${BUILD_DIR}" != /* ]]; then
 fi
 
 "${PYTHON3}" "${ROOT_DIR}/tools/convert_boing_pcm.py" \
-    --input "${ROOT_DIR}/assets/boing.samples" \
-    --output "${ROOT_DIR}/assets/boing_pcm.bin" \
+    --input "${ROOT_DIR}/sound/amiga_assets/boing.samples" \
+    --output "${ROOT_DIR}/sound/amiga_assets/boing_pcm.bin" \
     --target-rate 8000
 
 "${PYTHON3}" "${ROOT_DIR}/tools/build_assets.py" \
     --output "${BUILD_DIR}/sample_game_assets.bin" \
     --font-data "${MEGADRIVE_ENVIRONMENT_DIR}/include/MegaDriveEnvironment/util/font/FontData.hpp" \
-    --z80-source "${ROOT_DIR}/z80/boing_ball_sfx.s" \
-    --boing-pcm "${ROOT_DIR}/assets/boing_pcm.bin" \
+    --z80-source "${ROOT_DIR}/sound/z80/boing_ball_sfx.s" \
+    --boing-pcm "${ROOT_DIR}/sound/amiga_assets/boing_pcm.bin" \
     --work-dir "${BUILD_DIR}/generated/assets" \
     --layout-header "${BUILD_DIR}/generated/AssetLayout.hpp" \
     --layout-json "${BUILD_DIR}/generated/asset_layout.json" \

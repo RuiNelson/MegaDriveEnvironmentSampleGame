@@ -44,8 +44,8 @@ def main() -> int:
     tile_data = build_tile_data(font_data)
     assert len(tile_data) == (FONT_TILE_COUNT + len(CUSTOM_TILE_ROWS)) * TILE_SIZE
 
-    z80_source = REPOSITORY / "z80" / "boing_ball_sfx.s"
-    boing_samples = REPOSITORY / "assets" / "boing.samples"
+    z80_source = REPOSITORY / "sound" / "z80" / "boing_ball_sfx.s"
+    boing_samples = REPOSITORY / "sound" / "amiga_assets" / "boing.samples"
 
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
