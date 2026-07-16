@@ -27,8 +27,8 @@ class BoingBallFmSfx final {
     static constexpr memory::Address kZ80RamBase = 0xA00000;
     static constexpr memory::Address kZ80BusRequest = 0xA11100;
     static constexpr memory::Address kZ80Reset = 0xA11200;
-    static constexpr std::uint16_t kMailboxOffset = 0x1FF0;
-    static constexpr std::uint16_t kStatusOffset = 0x1FF1;
+    static constexpr std::uint16_t kMailboxOffset = 0x1E00;
+    static constexpr std::uint16_t kStatusOffset = 0x1E01;
 
     explicit BoingBallFmSfx(memory::Memory &memory);
 

@@ -15,15 +15,18 @@
 
 YM_ADDR:	equ	0x4000
 YM_DATA:	equ	0x4001
-CMD_MAILBOX:	equ	0x1FF0
-STATUS:		equ	0x1FF1
+; Keep the mailbox well below the stack (SP starts at $1F00).
+CMD_MAILBOX:	equ	0x1E00
+STATUS:		equ	0x1E01
 
 CMD_FLOOR:	equ	1
 CMD_WALL:	equ	2
 
 start:
 	di
-	ld	sp, 0x2000
+	; Stack grows down from just below the mailbox so nested YM helpers
+	; cannot overwrite the 68K command byte.
+	ld	sp, 0x1E00
 	xor	a
 	ld	(CMD_MAILBOX), a
 	call	init_ym
@@ -57,6 +60,7 @@ do_wall:
 ; ---------------------------------------------------------------------------
 
 ; Wait until the chip is not busy (status bit 7 clear).
+; Clobbers A — callers that need A preserved must push/pop around this.
 ym_wait:
 	ld	a, (YM_ADDR)
 	rla
@@ -64,8 +68,11 @@ ym_wait:
 	ret
 
 ; Write E to register A on FM part 0.
+; Must preserve A across the busy wait: ym_wait loads status into A.
 ym_write:
+	push	af
 	call	ym_wait
+	pop	af
 	ld	(YM_ADDR), a
 	ld	a, e
 	ld	(YM_DATA), a
@@ -75,8 +82,7 @@ ym_write:
 ym_key:
 	ld	a, 0x28
 	ld	e, d
-	call	ym_write
-	ret
+	jp	ym_write
 
 ; ---------------------------------------------------------------------------
 ; Voice setup: algorithm 7, operator 1 only (simple carrier).
@@ -170,15 +176,15 @@ sfx_floor:
 	ld	hl, 0x21D		; ~110 Hz
 	call	ym_pitch
 	ld	a, 0x40
-	ld	e, 0x08
-	call	ym_write		; slightly softer body
+	ld	e, 0x00
+	call	ym_write		; TL=0 loudest
 	ld	d, 0xF0
 	call	ym_key
-	ld	bc, 0x1800
+	ld	bc, 0x2800
 	call	delay_bc
 	ld	d, 0x00
 	call	ym_key
-	ld	bc, 0x0C00
+	ld	bc, 0x1000
 	call	delay_bc
 	ret
 
@@ -188,15 +194,15 @@ sfx_wall:
 	ld	hl, 0x32C		; ~330 Hz
 	call	ym_pitch
 	ld	a, 0x40
-	ld	e, 0x02
-	call	ym_write		; brighter / louder
+	ld	e, 0x00
+	call	ym_write		; TL=0 loudest
 	ld	d, 0xF0
 	call	ym_key
-	ld	bc, 0x0E00
+	ld	bc, 0x1800
 	call	delay_bc
 	ld	d, 0x00
 	call	ym_key
-	ld	bc, 0x0800
+	ld	bc, 0x0C00
 	call	delay_bc
 	ret
 

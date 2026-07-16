@@ -42,6 +42,17 @@ void BoingBallFmSfx::initialize() {
     // the Z80 begins execution at address 0 with a clean program image.
     releaseBus();
     releaseReset();
+
+    // Wait until the driver finishes YM init and raises its ready flag. Without
+    // this, early mailbox posts can race a still-booting Z80 on a slow host.
+    for (int spin = 0; spin < kBusAckSpinLimit; ++spin) {
+        requestBus();
+        const auto status = memory_.read8(kZ80RamBase + kStatusOffset);
+        releaseBus();
+        if (status == 1) {
+            break;
+        }
+    }
     ready_ = true;
 }
 
