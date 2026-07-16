@@ -21,7 +21,7 @@ constexpr std::uint16_t kFloorFirstTile = kWallFirstTile + kWallTileCount;
 constexpr std::uint16_t kTileBufferTileCapacity = 256;
 constexpr int kFloorFirstRow = 20;
 
-// $FF0000-$FF0005 belong to the IRQ bridge. This explicit 8192-byte scratch
+// $FF0000-$FF0003 holds the IRQ bridge SampleGame pointer. This explicit 8192-byte scratch
 // region is safely below the supervisor stack and is the sole dynamic tile
 // buffer. Both targets access it through the same memory bus API.
 constexpr memory::Address kTileBufferAddress = 0xFF1000;

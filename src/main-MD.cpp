@@ -30,9 +30,11 @@
  * | Range            | Owner / purpose                                      |
  * | ---------------- | ---------------------------------------------------- |
  * | `$FF0000-$FF0003`| Active `SampleGame*` for the IRQ bridge              |
- * | `$FF0004-$FF0005`| HBlank scanline counter shim                         |
  * | `$FF1000-$FF2FFF`| `BoingBallDemo` DMA tile buffer (not touched here)   |
  * | stack from `$FFFFFC` downwards | `SampleGame` + locals for `game_main` lifetime |
+ *
+ * The HBlank line counter lives inside `SampleGame` (not Work RAM): the VDP
+ * HINT does not report a scanline, so the game advances 0, 16, 32, … itself.
  *
  * The game object itself remains on the supervisor stack for the entire
  * lifetime of `game_main`. The IRQ bridge cannot take a C++ reference across
@@ -41,7 +43,6 @@
 
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
-#include "MegaDriveEnvironmentSampleGame/VdpUtils.hpp"
 
 // The real-hardware build deliberately defines no operator new/delete. All
 // game objects have automatic or embedded storage, so accidental heap use fails
@@ -68,22 +69,12 @@ extern "C" void __cxa_pure_virtual() {
 
 namespace {
 
-// Work RAM holds the IRQ bridge state. BoingBallDemo separately reserves
+// Work RAM holds the IRQ bridge pointer. BoingBallDemo separately reserves
 // $FF1000-$FF2FFF as its DMA tile buffer. The game object itself remains on the
 // supervisor stack for the lifetime of game_main.
 
 /** Fixed Work RAM address of the active `SampleGame*` used by IRQ handlers. */
 constexpr std::uintptr_t kActiveGameAddress = 0x00FF0000;
-
-/**
- * Fixed Work RAM address of the HBlank scanline shim (one 16-bit word).
- *
- * Real hardware raises HBlank IRQs every `sample::vdp::kHSyncLineBatch`
- * scanlines (VDP register 0x0A), not once per line. The hardware interrupt
- * itself does not report which scanline fired, so this shim reconstructs a
- * monotonic line index for `SampleGame::onHSync(int)`.
- */
-constexpr std::uintptr_t kHLineAddress = 0x00FF0004;
 
 /**
  * @brief Publishes the live game object so IRQ handlers can reach it.
@@ -112,43 +103,6 @@ sample::SampleGame &activeGame() {
     return **reinterpret_cast<sample::SampleGame *volatile *>(kActiveGameAddress);
 }
 
-/**
- * @brief Mutable view of the HBlank scanline counter in Work RAM.
- *
- * @return Volatile reference to the 16-bit shim at `kHLineAddress`.
- */
-volatile std::uint16_t &activeHLine() {
-    return *reinterpret_cast<volatile std::uint16_t *>(kHLineAddress);
-}
-
-/**
- * @brief Resets the HBlank scanline shim to the first batch endpoint.
- *
- * VDP HBlank IRQs are programmed for every 16 lines (`kHSyncLineBatch`). The
- * first interrupt of a frame therefore corresponds to scanline
- * `kHSyncLineBatch - 1` (line 15 when the batch size is 16). VBlank calls this
- * so each displayed frame restarts the monotonic line sequence from the top.
- */
-void resetHSyncLineShim() {
-    activeHLine() = static_cast<std::uint16_t>(sample::vdp::kHSyncLineBatch - 1);
-}
-
-/**
- * @brief Consumes and advances the HBlank scanline shim for one IRQ.
- *
- * Returns the scanline associated with the current HBlank, then advances the
- * shim by `kHSyncLineBatch` so the next HBlank reports the next batch end.
- * `SampleGame::onHSync` uses that endpoint to back-compute the first line of
- * the 16-line horizontal-scroll block it must write.
- *
- * @return Scanline index (batch endpoint) to pass to `SampleGame::onHSync`.
- */
-int nextHSyncLineFromShim() {
-    const auto hLine = activeHLine();
-    activeHLine() = static_cast<std::uint16_t>(hLine + sample::vdp::kHSyncLineBatch);
-    return static_cast<int>(hLine);
-}
-
 } // namespace
 
 /**
@@ -165,28 +119,21 @@ extern "C" void wait_for_interrupt();
  * @brief VBlank (IRQ6) C entry point called from `irq_level_6` in header.s.
  *
  * The assembler saves caller-saved registers, acknowledges the VDP status
- * port, then jumps here. Responsibilities:
- *
- * 1. Restart the HBlank scanline shim for the upcoming frame.
- * 2. Invoke `SampleGame::onVSync()` (shared gameplay + render tick).
- *
- * Must remain short enough that subsequent HBlank IRQs of the next frame are
- * not starved; heavy work belongs inside the shared game with that budget in mind.
+ * port (required to clear the pending IRQ; not used as a line source), then
+ * jumps here. Forwards into `SampleGame::onVSync()`.
  */
 extern "C" void game_vsync() {
-    resetHSyncLineShim();
     activeGame().onVSync();
 }
 
 /**
  * @brief HBlank (IRQ4) C entry point called from `irq_level_4` in header.s.
  *
- * Forwards the reconstructed scanline index into `SampleGame::onHSync`, which
- * fills a bounded block of per-line horizontal scroll values. The hardware
- * interrupt does not carry a line number; `nextHSyncLineFromShim()` supplies it.
+ * Forwards into `SampleGame::onHSync()`. The hardware interrupt does not carry
+ * a scanline index; the game tracks the next H-scroll block itself.
  */
 extern "C" void game_hsync() {
-    activeGame().onHSync(nextHSyncLineFromShim());
+    activeGame().onHSync();
 }
 
 /**
@@ -198,7 +145,7 @@ extern "C" void game_hsync() {
  *
  * 1. Construct target-specific `PlatformMemory` (direct 68000 bus accessors).
  * 2. Construct the shared `SampleGame` on the supervisor stack.
- * 3. Publish the game pointer for IRQ handlers and reset the HBlank shim.
+ * 3. Publish the game pointer for IRQ handlers.
  * 4. Run one-shot hardware/game initialization (controllers, audio, VDP, scene).
  * 5. Sleep forever via `wait_for_interrupt()`; all further work is IRQ-driven.
  *
@@ -211,7 +158,6 @@ extern "C" [[noreturn]] void game_main() {
     sample::platform::PlatformMemory memory;
     sample::SampleGame game{memory};
     setActiveGame(&game);
-    resetHSyncLineShim();
     game.initialize();
 
     for (;;) {

@@ -13,9 +13,12 @@ persistent state, scratch buffers and any allocator share that region.
 ## Current reservations
 
 - `$FF0000-$FF0003`: active `SampleGame` pointer used by the IRQ bridge;
-- `$FF0004-$FF0005`: HBlank scanline shim;
 - `$FF1000-$FF2FFF`: Boing Ball tile/DMA buffer;
 - stack starts at `$FFFFFC` and grows downwards.
+
+The HBlank line counter is a normal member of `SampleGame` (on the stack with
+the game object), not a fixed Work RAM word. The VDP HINT does not report a
+scanline index; the game advances the next H-scroll block start itself.
 
 Future layouts must preserve these ranges or relocate them deliberately in all
 code, tests and documentation. There is no guard page between a descending

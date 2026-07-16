@@ -66,7 +66,7 @@ namespace {
  *
  * - `run()`     — load assets, initialize the game, pump IRQs until quit/limit;
  * - `vSync()`   — one shared game tick per emulated VBlank;
- * - `hSync()`   — per-scanline (or batched) horizontal-scroll work.
+ * - `hSync()`   — batched horizontal-scroll work (line index tracked in SampleGame).
  *
  * Actual game rules, rendering and hardware protocols stay inside
  * `sample::SampleGame`; this class must not reimplement them.
@@ -136,14 +136,14 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
     }
 
     /**
-     * @brief Emulated HBlank hook for per-line (or batched) scroll work.
+     * @brief Emulated HBlank hook for batched horizontal-scroll work.
      *
-     * @param scanline Scanline that triggered the interrupt, as reported by
-     *                 the host VDP model. On hardware, `main-MD.cpp` rebuilds
-     *                 an equivalent index via the Work RAM shim.
+     * The environment reports the scanline that raised HINT, but the shared
+     * game ignores it and advances its own first-line counter so PC and real
+     * hardware stay identical (hardware HINT has no line payload at all).
      */
-    void hSync(int scanline) override {
-        game_.onHSync(scanline);
+    void hSync(int /*scanline*/) override {
+        game_.onHSync();
     }
 
     /** Filesystem path of the raw asset ROM passed to `loadROM`. */

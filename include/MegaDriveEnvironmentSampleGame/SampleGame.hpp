@@ -29,14 +29,20 @@ class SampleGame final {
     /** Configures the controller, PSG, Z80 FM demo driver, VDP and initial scene. */
     void initialize();
 
-    /** Advances input, gameplay, sound and rendering once per VBlank IRQ. */
+    /**
+     * Advances input, gameplay, sound and rendering once per VBlank IRQ.
+     * Also finishes the last H-scroll block and resets the HBlank line counter.
+     */
     void onVSync();
 
     /**
      * Applies a raster scroll effect when the VDP raises an HBlank IRQ.
-     * @param scanline Scanline that triggered the interrupt.
+     *
+     * The hardware HINT does not report a scanline index, and the host VDP's
+     * line argument is not required either: this method advances an internal
+     * first-line counter (0, 16, 32, …) so both targets stay in lockstep.
      */
-    void onHSync(int scanline);
+    void onHSync();
 
   private:
     enum class Screen : std::uint8_t {
@@ -79,6 +85,11 @@ class SampleGame final {
     demo::BoingBallDemo boingBallDemo_;
     /** Moves the Plane B wave vertically without scrolling Plane A. */
     std::uint8_t backgroundWavePhase_ = 0;
+    /**
+     * First scanline of the next H-scroll block written by onHSync().
+     * Reset to 0 on each VBlank; advanced by kHSyncLineBatch per HBlank.
+     */
+    int nextHScrollLine_ = 0;
     /** Keeps gameplay paused until the player accepts the satirical notice. */
     bool cookieConsentAccepted_ = false;
     /** Prevents the acceptance press from also resetting the game. */

@@ -91,8 +91,9 @@ cmake -S . -B build \
 - Keep the shared game allocation-free. The real-hardware build intentionally
   provides no `operator new/delete`, so use automatic or embedded
   fixed-capacity storage.
-- Preserve the Work RAM reservations at `$FF0000-$FF0005` for the IRQ bridge
-  and `$FF1000-$FF2FFF` for `BoingBallDemo`'s dynamic tile/DMA buffer.
+- Preserve the Work RAM reservations at `$FF0000-$FF0003` for the IRQ bridge
+  pointer and `$FF1000-$FF2FFF` for `BoingBallDemo`'s dynamic tile/DMA buffer.
+  HBlank line tracking is a `SampleGame` member, not a fixed Work RAM shim.
 - Boing Ball bounce SFX stream `sound/amiga_assets/boing_pcm.bin` via Z80 +
   YM2612 DAC (`sound/z80/boing_ball_sfx.s` + `BoingBallFmSfx`). The main game
   keeps `PsgSoundEffects` on the SN76489. Shared audio code is memory-mapped

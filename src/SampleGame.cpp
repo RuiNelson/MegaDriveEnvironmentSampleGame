@@ -64,21 +64,24 @@ void SampleGame::onVSync() {
     // that last block here during VBlank so both targets complete all 224
     // per-line entries before the next displayed frame.
     writeBackgroundWaveBlock(kVisibleScanlineCount - vdp::kHSyncLineBatch);
+    // Restart the software line counter; HINT itself never reports a line index.
+    nextHScrollLine_ = 0;
     update();
     render();
     backgroundWavePhase_ = static_cast<std::uint8_t>((backgroundWavePhase_ + 1u) & 0x3Fu);
 }
 
-void SampleGame::onHSync(int scanline) {
-    if (scanline >= kVisibleScanlineCount - 1) {
+void SampleGame::onHSync() {
+    // Skip once the final visible block is reserved for onVSync() (lines 208-223).
+    if (nextHScrollLine_ >= kVisibleScanlineCount - vdp::kHSyncLineBatch) {
         return;
     }
 
     // One address command starts a contiguous block, then VDP auto-increment
     // advances through all Plane A / Plane B pairs. This keeps the real 68000
     // IRQ short enough while preserving an independent offset for every line.
-    const int firstScanline = scanline - (vdp::kHSyncLineBatch - 1);
-    writeBackgroundWaveBlock(firstScanline);
+    writeBackgroundWaveBlock(nextHScrollLine_);
+    nextHScrollLine_ += vdp::kHSyncLineBatch;
 }
 
 void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
