@@ -219,8 +219,8 @@ void BoingBallDemo::activate() {
     ballSize_ = kDefaultZoomSize;
     ballXFixed_ = kLeftEdge * kFixedOne;
     ballYFixed_ = 80 * kFixedOne;
-    // Kept deliberately slower than a "arcade" bounce so the ~1.8 s Amiga
-    // impact sample can finish between floor hits (≈107 frames at 60 Hz).
+    // Kept deliberately slower than a pure arcade bounce so the long impact
+    // sample can finish between floor hits (≈107 frames at 60 Hz).
     velocityXFixed_ = 192; // 0.75 pixels per displayed frame
     velocityYFixed_ = 0;
     thetaPhase_ = 0;

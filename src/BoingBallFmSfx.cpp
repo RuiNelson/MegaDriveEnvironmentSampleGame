@@ -55,7 +55,7 @@ void BoingBallFmSfx::initialize() {
     memory_.write8(kZ80RamBase + kMailboxOffset, kCommandIdle);
     memory_.write8(kZ80RamBase + kStatusOffset, 0);
 
-    // Point the Z80 at the ROM-resident Amiga sample through its 32 KiB bank.
+    // Point the Z80 at the ROM-resident impact PCM through its 32 KiB bank.
     const auto pcmOffset = assets::kBoingPcmOffset;
     const auto pcmSize = static_cast<std::uint16_t>(assets::kBoingPcmSize);
     const auto bank = static_cast<std::uint16_t>(pcmOffset >> 15);

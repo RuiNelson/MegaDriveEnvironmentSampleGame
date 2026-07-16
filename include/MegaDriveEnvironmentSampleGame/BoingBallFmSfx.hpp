@@ -10,8 +10,8 @@
 namespace sample::audio {
 
 /**
- * Loads the Boing Ball Z80 driver, points it at the ROM-resident Amiga impact
- * sample, and posts bounce commands through a Z80 RAM mailbox.
+ * Loads the Boing Ball Z80 driver, points it at the ROM-resident impact PCM,
+ * and posts bounce commands through a Z80 RAM mailbox.
  *
  * Every access is a memory-mapped bus operation through memory::Memory:
  * Z80 RAM at $A00000, bus request at $A11100, reset at $A11200. The Z80
@@ -44,10 +44,10 @@ class BoingBallFmSfx final {
      */
     void initialize();
 
-    /** Posts the floor-bounce command (Amiga period 255 rate). */
+    /** Posts the floor-bounce command (full-rate PCM stream). */
     void playFloorBounce();
 
-    /** Posts the wall-bounce command (Amiga period 160 rate). */
+    /** Posts the wall-bounce command (faster PCM stream). */
     void playWallBounce();
 
     /** True after a successful initialize(). */
