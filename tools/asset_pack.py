@@ -184,12 +184,176 @@ def format_byte_size(size: int) -> str:
     return f"{size} bytes (0x{size:X})"
 
 
-def print_asset_layout_summary(layout: AssetLayout, *, title: str = "Asset pack") -> None:
-    """Print pack offset/size and each named blob."""
+@dataclass(frozen=True)
+class RomRegion:
+    """Named slice of the cartridge image for text/SVG charts."""
+
+    name: str
+    offset: int
+    size: int
+    color: str  # CSS / SVG fill colour
+    glyph: str  # single character for ASCII stacked maps
+
+
+def _bar(fraction: float, width: int = 40, fill: str = "█", empty: str = "·") -> str:
+    filled = int(round(max(0.0, min(1.0, fraction)) * width))
+    filled = max(0, min(width, filled))
+    if fraction > 0 and filled == 0:
+        filled = 1
+    return fill * filled + empty * (width - filled)
+
+
+def _stacked_ascii(regions: list[RomRegion], total: int, width: int = 56) -> str:
+    """One-line map of the full ROM (or used span) using per-region glyphs."""
+    if total <= 0:
+        return ""
+    cells: list[str] = []
+    for region in regions:
+        if region.size <= 0:
+            continue
+        n = max(1, int(round(region.size / total * width)))
+        cells.append(region.glyph * n)
+    line = "".join(cells)
+    if len(line) < width:
+        line += "·" * (width - len(line))
+    elif len(line) > width:
+        line = line[:width]
+    return f"  [{line}]"
+
+
+def _print_region_rows(regions: list[RomRegion], *, bar_width: int = 36) -> None:
+    positive = [r for r in regions if r.size > 0]
+    scale = max((r.size for r in positive), default=1)
+    for region in positive:
+        end = region.offset + region.size - 1
+        pct = 100.0 * region.size / scale if scale else 0.0
+        # Per-row bar is relative to the largest region for readability.
+        print(
+            f"  {region.glyph} {region.name + ':':20} {_bar(region.size / scale, bar_width)} "
+            f"{format_byte_size(region.size)}  "
+            f"[0x{region.offset:06X}-0x{end:06X}]"
+        )
+
+
+def _write_rom_layout_svg(
+    path: Path,
+    *,
+    title: str,
+    rom_size: int,
+    full_regions: list[RomRegion],
+    used_regions: list[RomRegion],
+) -> None:
+    """Write a simple two-panel SVG chart of the ROM layout."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    width = 720
+    margin = 24
+    bar_h = 36
+    y0 = 56
+    y1 = 160
+    inner_w = width - 2 * margin
+
+    def segments(regions: list[RomRegion], total: int) -> list[tuple[RomRegion, float, float]]:
+        out: list[tuple[RomRegion, float, float]] = []
+        x = 0.0
+        for region in regions:
+            if region.size <= 0 or total <= 0:
+                continue
+            w = max(1.0, region.size / total * inner_w)
+            out.append((region, x, w))
+            x += w
+        return out
+
+    used_total = sum(r.size for r in used_regions if r.size > 0)
+    full_segs = segments(full_regions, rom_size)
+    used_segs = segments(used_regions, used_total or 1)
+
+    legend_items = []
+    seen: set[str] = set()
+    for region in full_regions + used_regions:
+        if region.name in seen or region.size <= 0:
+            continue
+        seen.add(region.name)
+        legend_items.append(region)
+
+    legend_y = y1 + bar_h + 36
+    svg: list[str] = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{legend_y + 28 + 22 * len(legend_items)}" '
+        f'viewBox="0 0 {width} {legend_y + 28 + 22 * len(legend_items)}">',
+        f'<rect width="100%" height="100%" fill="#0f1115"/>',
+        f'<text x="{margin}" y="28" fill="#e8eaed" font-family="ui-sans-serif,system-ui,sans-serif" '
+        f'font-size="16" font-weight="600">{title}</text>',
+        f'<text x="{margin}" y="{y0 - 10}" fill="#9aa0a6" font-family="ui-sans-serif,system-ui,sans-serif" '
+        f'font-size="12">Full 4 MiB cart (linear)</text>',
+        f'<rect x="{margin}" y="{y0}" width="{inner_w}" height="{bar_h}" rx="4" fill="#1a1d24" '
+        f'stroke="#3c4048"/>',
+    ]
+    for region, x, w in full_segs:
+        svg.append(
+            f'<rect x="{margin + x:.1f}" y="{y0}" width="{w:.1f}" height="{bar_h}" '
+            f'fill="{region.color}"><title>{region.name}: {region.size} bytes</title></rect>'
+        )
+    svg.append(
+        f'<text x="{margin}" y="{y1 - 10}" fill="#9aa0a6" font-family="ui-sans-serif,system-ui,sans-serif" '
+        f'font-size="12">Used only (header + code + assets, scaled)</text>'
+    )
+    svg.append(
+        f'<rect x="{margin}" y="{y1}" width="{inner_w}" height="{bar_h}" rx="4" fill="#1a1d24" '
+        f'stroke="#3c4048"/>'
+    )
+    for region, x, w in used_segs:
+        svg.append(
+            f'<rect x="{margin + x:.1f}" y="{y1}" width="{w:.1f}" height="{bar_h}" '
+            f'fill="{region.color}"><title>{region.name}: {region.size} bytes</title></rect>'
+        )
+
+    svg.append(
+        f'<text x="{margin}" y="{legend_y}" fill="#9aa0a6" font-family="ui-sans-serif,system-ui,sans-serif" '
+        f'font-size="12">Legend</text>'
+    )
+    for i, region in enumerate(legend_items):
+        ly = legend_y + 18 + i * 22
+        svg.append(f'<rect x="{margin}" y="{ly - 10}" width="14" height="14" rx="2" fill="{region.color}"/>')
+        svg.append(
+            f'<text x="{margin + 22}" y="{ly + 2}" fill="#e8eaed" '
+            f'font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">'
+            f"{region.name}: {format_byte_size(region.size)}</text>"
+        )
+    svg.append("</svg>\n")
+    path.write_text("".join(svg), encoding="utf-8")
+
+
+def print_asset_layout_summary(
+    layout: AssetLayout,
+    *,
+    title: str = "Asset pack",
+    svg_path: Path | None = None,
+) -> None:
+    """Print pack offset/size, each blob, and a visual map."""
     free_prefix = layout.pack_offset
+    free_region = RomRegion("free", 0, free_prefix, "#3c4048", "·")
+    asset_colors = ("#8ab4f8", "#fdd663", "#81c995", "#f28b82", "#c58af9")
+    asset_glyphs = "ABCDEFGH"
+    full_regions: list[RomRegion] = [free_region]
+    used_regions: list[RomRegion] = []
+    for index, blob in enumerate(layout.blobs):
+        region = RomRegion(
+            blob.name,
+            blob.offset,
+            blob.aligned_size,
+            asset_colors[index % len(asset_colors)],
+            asset_glyphs[index % len(asset_glyphs)],
+        )
+        full_regions.append(region)
+        used_regions.append(
+            RomRegion(blob.name, blob.offset, blob.size, region.color, region.glyph)
+        )
+
     print(f"{title}:")
     print(f"  ROM size:              {format_byte_size(layout.rom_size)}")
-    print(f"  Free before assets:    {format_byte_size(free_prefix)}  [0x000000-0x{layout.pack_offset - 1:06X}]")
+    print(
+        f"  Free before assets:    {format_byte_size(free_prefix)}  "
+        f"[0x000000-0x{layout.pack_offset - 1:06X}]"
+    )
     print(
         f"  Assets (packed):       {format_byte_size(layout.pack_size)}  "
         f"[0x{layout.pack_offset:06X}-0x{layout.rom_size - 1:06X}]"
@@ -203,14 +367,30 @@ def print_asset_layout_summary(layout: AssetLayout, *, title: str = "Asset pack"
             f"[0x{blob.offset:06X}-0x{end:06X}]{pad_note}"
         )
 
+    print("  Full cart map (linear):")
+    print(_stacked_ascii(full_regions, layout.rom_size))
+    print("  Assets detail (relative bars):")
+    _print_region_rows(used_regions)
+
+    if svg_path is not None:
+        _write_rom_layout_svg(
+            svg_path,
+            title=title,
+            rom_size=layout.rom_size,
+            full_regions=full_regions,
+            used_regions=used_regions,
+        )
+        print(f"  Chart: {svg_path}")
+
 
 def print_megadrive_rom_summary(
     layout: AssetLayout,
     *,
     code_end: int,
     title: str = "Mega Drive ROM layout",
+    svg_path: Path | None = None,
 ) -> None:
-    """Print vectors/header, code, free gap, and asset pack usage."""
+    """Print vectors/header, code, free gap, asset pack, and visual charts."""
     vectors_size = 0x100
     header_size = 0x100
     header_region = vectors_size + header_size  # 0x000000-0x0001FF
@@ -225,6 +405,26 @@ def print_megadrive_rom_summary(
     free_gap = layout.pack_offset - code_end
     used = header_region + code_size + layout.pack_size
     free_total = layout.rom_size - used
+
+    header = RomRegion("header", 0, header_region, "#f28b82", "H")
+    code = RomRegion("code", code_start, code_size, "#8ab4f8", "C")
+    free = RomRegion("free", code_end, free_gap, "#3c4048", "·")
+    assets = RomRegion("assets", layout.pack_offset, layout.pack_size, "#fdd663", "A")
+    full_regions = [header, code, free, assets]
+
+    asset_colors = ("#fdd663", "#81c995", "#c58af9", "#78d9ec", "#f28b82")
+    asset_glyphs = "abcdef"
+    used_regions: list[RomRegion] = [header, code]
+    for index, blob in enumerate(layout.blobs):
+        used_regions.append(
+            RomRegion(
+                blob.name,
+                blob.offset,
+                blob.size,
+                asset_colors[index % len(asset_colors)],
+                asset_glyphs[index % len(asset_glyphs)],
+            )
+        )
 
     print(f"{title}:")
     print(f"  ROM size:              {format_byte_size(layout.rom_size)}")
@@ -253,3 +453,18 @@ def print_megadrive_rom_summary(
         )
     print(f"  Used (header+code+assets): {format_byte_size(used)}")
     print(f"  Free total:                {format_byte_size(free_total)}")
+
+    print("  Full cart map (H=header C=code ·=free A=assets):")
+    print(_stacked_ascii(full_regions, layout.rom_size))
+    print("  Used breakdown (relative bars):")
+    _print_region_rows(used_regions)
+
+    if svg_path is not None:
+        _write_rom_layout_svg(
+            svg_path,
+            title=title,
+            rom_size=layout.rom_size,
+            full_regions=full_regions,
+            used_regions=used_regions,
+        )
+        print(f"  Chart: {svg_path}")

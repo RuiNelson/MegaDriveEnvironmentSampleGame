@@ -406,12 +406,17 @@ def build(args: argparse.Namespace) -> None:
     checksum = write_checksum(output_rom)
     details = validate_rom(output_rom, asset_rom, layout)
     code_end = parse_code_end_from_map(map_path)
+    chart_path = generated_dir / "megadrive_rom_layout.svg"
     print(
         f"Wrote {output_rom}: {ROM_SIZE} bytes, checksum 0x{checksum:04X}, "
         f"reset 0x{details['reset_vector']:06X}, IRQ4/6 "
         f"0x{details['hblank_vector']:06X}/0x{details['vblank_vector']:06X}"
     )
-    print_megadrive_rom_summary(layout, code_end=code_end)
+    print_megadrive_rom_summary(
+        layout,
+        code_end=code_end,
+        svg_path=chart_path,
+    )
     print(f"Assembly inputs: {repository / 'megadrive' / 'header.s'}")
     print(f"                 {code_assembly}")
     print(f"                 {blobs_assembly}")

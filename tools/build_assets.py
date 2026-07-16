@@ -185,7 +185,12 @@ def main() -> int:
     print(f"Wrote {args.layout_json}")
     print(f"Wrote {args.pack_binary}")
     print(f"Assembled Z80 driver: {len(z80_binary)} bytes")
-    print_asset_layout_summary(layout, title="Asset ROM layout")
+    chart_path = args.layout_json.resolve().with_name("asset_rom_layout.svg")
+    print_asset_layout_summary(
+        layout,
+        title="Asset ROM layout",
+        svg_path=chart_path,
+    )
     return 0
 
 
