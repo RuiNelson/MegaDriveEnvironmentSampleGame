@@ -219,7 +219,9 @@ void BoingBallDemo::activate() {
     ballSize_ = kDefaultZoomSize;
     ballXFixed_ = kLeftEdge * kFixedOne;
     ballYFixed_ = 80 * kFixedOne;
-    velocityXFixed_ = 320; // 1.25 pixels per displayed frame
+    // Kept deliberately slower than a "arcade" bounce so the ~1.8 s Amiga
+    // impact sample can finish between floor hits (≈107 frames at 60 Hz).
+    velocityXFixed_ = 192; // 0.75 pixels per displayed frame
     velocityYFixed_ = 0;
     thetaPhase_ = 0;
     phiPhase_ = 0;
@@ -299,12 +301,13 @@ BounceEvents BoingBallDemo::update(bool zoomIn, bool zoomOut) {
         }
     }
 
-    velocityYFixed_ += 48; // 0.1875 pixels/frame^2
+    velocityYFixed_ += 24; // 0.09375 pixels/frame^2
     ballYFixed_ += velocityYFixed_;
     const int floorY = kBallFloor - ballSize_;
     if (ballYFixed_ >= floorY * kFixedOne) {
         ballYFixed_ = floorY * kFixedOne;
-        velocityYFixed_ = -1408; // 5.5 pixels/frame upwards
+        // ≈4.0 px/frame up; with g above, air time ≈ 2*v/g ≈ 85–110 frames.
+        velocityYFixed_ = -1280;
         events.hitFloor = true;
     }
 
