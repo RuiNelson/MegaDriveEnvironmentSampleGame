@@ -109,7 +109,9 @@ PYTHON3=/path/to/python3 ./build_megadrive.sh \
 
 `tools/build_megadrive_rom.py` validates image size, header, vectors, checksum,
 code/asset overlap and the byte-for-byte packed payload. It retains generated
-assembly, ELF, map and layout charts below `build/megadrive/`.
+post-LTO disassembly, ELF, map and layout charts below `build/megadrive/`. The
+shared C++ is optimized with `-Os -flto`; `-Os` remains the code-generation
+policy because it balances ROM size and 68000 execution speed.
 
 ## Emulator configuration
 

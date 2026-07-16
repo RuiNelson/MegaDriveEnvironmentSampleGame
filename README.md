@@ -64,7 +64,8 @@ in the ignored `controls.yaml` file.
 - generated, named assets in a raw 32-Mbit image;
 - a software-rasterized, continuously scalable checker ball;
 - deterministic gameplay objects with host-side unit tests;
-- a validated Sega header, vector table, checksum and ROM layout.
+- a validated Sega header, vector table, checksum and ROM layout;
+- an `-Os` plus link-time-optimized M68000 executable.
 
 ## Repository map
 

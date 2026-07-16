@@ -83,7 +83,9 @@ cmake -S . -B build \
 - Install `z80asm` (https://www.nongnu.org/z80asm/, e.g. `brew install z80asm`)
   for any build that regenerates assets.
 - Keep the hand-written vector table and Sega header in `megadrive/header.s`.
-  `code.s` and `blobs.s` are generated build artifacts and must not be committed.
+  The ROM build compiles shared C++ with `-Os -flto` and links through the GCC
+  driver. `code.o`, `code.disasm`, and `blobs.s` are generated build artifacts
+  and must not be committed.
 - Never execute the `MEGADRIVE` branch of `Memory.hpp` on the
   host; it dereferences the real 68000 address map directly.
 - Keep the shared game allocation-free. The real-hardware build intentionally

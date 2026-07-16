@@ -73,9 +73,10 @@ quantizes to unsigned 8-bit YM2612 DAC data. After regeneration, run
 ## Bootable ROM
 
 The raw asset image has no vectors, executable or Sega header. The real-
-hardware builder compiles the shared C++ to M68000 assembly, combines it with
-`megadrive/header.s`, embeds `asset_pack.bin`, links using a generated layout,
-patches the checksum and validates the final image.
+hardware builder compiles the shared C++ with `-Os -flto`, combines its LTO
+object with `megadrive/header.s`, embeds `asset_pack.bin`, links through the GCC
+driver using a generated layout, patches the checksum and validates the final
+image. `code.disasm` contains a readable disassembly of the final post-LTO ELF.
 
-Generated `code.cpp`, `code.s`, `blobs.s`, linker script, objects, ELF, map,
-ROMs and SVG charts belong under `build/` and must not be committed.
+Generated `code.cpp`, `code.o`, `code.disasm`, `blobs.s`, linker script, ELF,
+map, ROMs and SVG charts belong under `build/` and must not be committed.

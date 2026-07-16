@@ -15,11 +15,22 @@ from asset_pack import ROM_SIZE, AssetLayout, print_megadrive_rom_summary
 
 ROM_CHECKSUM_OFFSET = 0x18E
 ROM_CHECKSUM_START = 0x200
+# GCC requires the same optimization/LTO options at compile and link time.
+CODE_OPTIMIZATION_FLAGS = ("-Os", "-flto")
 
 
 def run(command: list[str], *, cwd: Path) -> None:
     print("+", " ".join(command))
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def write_disassembly(objdump: str, elf_path: Path, output_path: Path) -> None:
+    """Write a readable disassembly of the final, post-LTO executable code."""
+    command = [objdump, "-d", "-C", str(elf_path)]
+    print("+", " ".join(command), ">", output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as output:
+        subprocess.run(command, check=True, stdout=output, text=True)
 
 
 def require_tool(name: str, *, hint: str | None = None) -> str:
@@ -275,8 +286,9 @@ def build(args: argparse.Namespace) -> None:
         args.assembler or f"{args.tool_prefix}as",
         hint="on macOS run 'brew install m68k-elf-binutils'",
     )
-    linker = require_tool(f"{args.tool_prefix}ld")
+    require_tool(f"{args.tool_prefix}ld")
     objcopy = require_tool(f"{args.tool_prefix}objcopy")
+    objdump = require_tool(f"{args.tool_prefix}objdump")
     require_tool("z80asm", hint="on macOS run 'brew install z80asm'")
 
     boing_pcm = repository / "sound" / "amiga_assets" / "boing_pcm.bin"
@@ -309,7 +321,7 @@ def build(args: argparse.Namespace) -> None:
         raise RuntimeError("asset ROM pack tail does not match pack binary")
 
     combined_cpp = generated_dir / "code.cpp"
-    code_assembly = generated_dir / "code.s"
+    code_disassembly = generated_dir / "code.disasm"
     blobs_assembly = generated_dir / "blobs.s"
     rom_ld = generated_dir / "rom.ld"
     header_object = build_dir / "header.o"
@@ -327,7 +339,7 @@ def build(args: argparse.Namespace) -> None:
             cxx,
             "-std=c++23",
             "-m68000",
-            "-Os",
+            *CODE_OPTIMIZATION_FLAGS,
             "-DMEGADRIVE=1",
             "-ffreestanding",
             "-fno-exceptions",
@@ -348,16 +360,15 @@ def build(args: argparse.Namespace) -> None:
             str(repository / "include"),
             "-I",
             str(layout_header.parent),
-            "-S",
+            "-c",
             str(combined_cpp),
             "-o",
-            str(code_assembly),
+            str(code_object),
         ],
         cwd=repository,
     )
     assembly_inputs = (
         (repository / "megadrive" / "header.s", header_object),
-        (code_assembly, code_object),
         (blobs_assembly, blobs_object),
     )
     for source, object_path in assembly_inputs:
@@ -367,12 +378,14 @@ def build(args: argparse.Namespace) -> None:
         )
     run(
         [
-            linker,
-            "--gc-sections",
-            "-T",
-            str(rom_ld),
-            "-Map",
-            str(map_path),
+            cxx,
+            "-m68000",
+            *CODE_OPTIMIZATION_FLAGS,
+            "-nostdlib",
+            "-no-pie",
+            "-Wl,--gc-sections",
+            f"-Wl,-T,{rom_ld}",
+            f"-Wl,-Map,{map_path}",
             "-o",
             str(elf_path),
             str(header_object),
@@ -381,6 +394,7 @@ def build(args: argparse.Namespace) -> None:
         ],
         cwd=repository,
     )
+    write_disassembly(objdump, elf_path, code_disassembly)
     run(
         [
             objcopy,
@@ -408,9 +422,10 @@ def build(args: argparse.Namespace) -> None:
         code_end=code_end,
         svg_path=chart_path,
     )
-    print(f"Assembly inputs: {repository / 'megadrive' / 'header.s'}")
-    print(f"                 {code_assembly}")
-    print(f"                 {blobs_assembly}")
+    print(f"Link inputs: {repository / 'megadrive' / 'header.s'}")
+    print(f"             {code_object} (GCC LTO)")
+    print(f"             {blobs_assembly}")
+    print(f"Final disassembly: {code_disassembly}")
 
 
 def parse_args() -> argparse.Namespace:
