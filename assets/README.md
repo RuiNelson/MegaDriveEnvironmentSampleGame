@@ -2,10 +2,26 @@
 
 ## `boing_pcm.bin`
 
-Unsigned 8-bit PCM of the classic Amiga Boing demo impact sample
-(`boing.samples` from http://amiga.filfre.net/misc/Chapter2/), centre at
-`0x80`. The Amiga demo plays it through Paula at period 255 (floor, ~14 kHz)
-and period 160 (side, ~22 kHz) with volumes 63 and 40.
+Unsigned 8-bit PCM for the YM2612 DAC (silence = `0x80`), converted from the
+classic Amiga Boing impact sample.
 
-Source: Dale Luck / R.J. Mical Amiga Boing (1984–85), reconstructed archive
-hosted with Jimmy Maher’s chapter notes.
+| Source | Format |
+|--------|--------|
+| Amiga `boing.samples` | 8-bit **signed** (Paula, silence = 0) |
+| This file | 8-bit **unsigned** (YM2612 `$2A`, silence = `0x80`) |
+
+Conversion (required by the chip / ymfm: `internal = (data ^ 0x80) << 1`):
+
+```text
+ym_byte = (amiga_signed + 128) & 0xFF
+```
+
+Playback rates match the Amiga demo’s Paula periods (NTSC colour clock):
+
+| Hit | Amiga period | ≈ sample rate |
+|-----|--------------|---------------|
+| Floor | 255 | ~14.0 kHz |
+| Wall  | 160 | ~22.4 kHz |
+
+Source archive: http://amiga.filfre.net/misc/Chapter2/ (Dale Luck / R.J. Mical
+Boing demo samples; reconstruction notes by Jimmy Maher).

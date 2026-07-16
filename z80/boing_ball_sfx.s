@@ -1,27 +1,28 @@
 ; Boing Ball demo sound driver for the Mega Drive Z80.
 ; Assembled with z80asm (https://www.nongnu.org/z80asm/).
 ;
-; Plays the original Amiga Boing impact sample (garage-door slam) through the
-; YM2612 DAC, streaming from cartridge ROM via the Z80 32 KiB bank window.
+; Streams the original Amiga Boing impact sample (boing.samples) through the
+; YM2612 channel-6 DAC. Sample bytes are unsigned 8-bit with centre 0x80
+; (Amiga signed PCM + 128), matching what the YM2612 expects on register $2A.
 ;
-; Z80 RAM layout (shared with the 68000 via $A00000):
-;   $0000..     this program
-;   $1E00       command mailbox (68K writes, Z80 clears)
-;                 0 = idle
-;                 1 = floor bounce  (Amiga period 255)
-;                 2 = wall bounce   (Amiga period 160)
-;   $1E01       status (Z80 writes 1 when ready)
-;   $1E02/$1E03 sample bank (word, little-endian) = cart_addr >> 15
-;   $1E04/$1E05 sample pointer in bank window (word LE, $8000+)
-;   $1E06/$1E07 sample length in bytes (word LE)
+; Z80 RAM (visible to the 68000 at $A00000):
+;   $1E00       command: 0 idle, 1 floor (Paula period 255), 2 wall (period 160)
+;   $1E01       status: 1 = ready
+;   $1E02/03    PCM bank  = cart_addr >> 15          (little-endian word)
+;   $1E04/05    PCM ptr   = $8000 | (cart_addr & $7FFF)
+;   $1E06/07    PCM length in bytes
 ;
-; YM2612 is memory-mapped on the Z80 bus at $4000-$4003.
-; Bank register is written bit-serially at $6000.
+; Hardware map used (memory only):
+;   $4000/$4001  YM2612 part 0  (global + ch1-3)
+;   $4002/$4003  YM2612 part 1  (ch4-6, including DAC pan $B6)
+;   $6000        Z80 bank latch (9 bits, LSB first = 68K A15)
 
 	org	0
 
-YM_ADDR:	equ	0x4000
-YM_DATA:	equ	0x4001
+YM0_ADDR:	equ	0x4000
+YM0_DATA:	equ	0x4001
+YM1_ADDR:	equ	0x4002
+YM1_DATA:	equ	0x4003
 Z80_BANK:	equ	0x6000
 
 CMD_MAILBOX:	equ	0x1E00
@@ -33,10 +34,10 @@ PCM_LEN:	equ	0x1E06
 CMD_FLOOR:	equ	1
 CMD_WALL:	equ	2
 
-; Playback delays (inner DJNZ counts). Tuned for ~14 kHz / ~22 kHz on a
-; 3.58 MHz Z80 with a tight DAC write path (no busy-wait per sample).
-DELAY_FLOOR:	equ	18
-DELAY_WALL:	equ	11
+; Inner DJNZ counts so total T-states per sample ≈ Amiga Paula period.
+; Loop body is ~56 T; floor wants ~255 T, wall ~160 T (NTSC colour clock).
+DELAY_FLOOR:	equ	16		; ~259 T → ~13.8 kHz (period 255 → 14.0 kHz)
+DELAY_WALL:	equ	8		; ~155 T → ~23.1 kHz (period 160 → 22.4 kHz)
 
 start:
 	di
@@ -72,69 +73,83 @@ do_wall:
 	jr	main_loop
 
 ; ---------------------------------------------------------------------------
-; YM2612 helpers
-; ---------------------------------------------------------------------------
 
 ym_wait:
-	ld	a, (YM_ADDR)
+	ld	a, (YM0_ADDR)
 	rla
 	jr	c, ym_wait
 	ret
 
-; Write E to register A on FM part 0.
-ym_write:
+; Write E to register A on FM part 0 ($4000/$4001).
+ym0_write:
 	push	af
 	call	ym_wait
 	pop	af
-	ld	(YM_ADDR), a
+	ld	(YM0_ADDR), a
 	ld	a, e
-	ld	(YM_DATA), a
+	ld	(YM0_DATA), a
+	ret
+
+; Write E to register A on FM part 1 ($4002/$4003).
+ym1_write:
+	push	af
+	call	ym_wait
+	pop	af
+	ld	(YM1_ADDR), a
+	ld	a, e
+	ld	(YM1_DATA), a
 	ret
 
 ; ---------------------------------------------------------------------------
-; DAC init — silence FM channels, enable DAC on channel 6 path.
+; DAC setup. Critical: enable pan L+R on channel 6 ($B6 in part 1). Without
+; those bits the YM2612 mixes DAC as silence (ymfm checks ch_output on 0x102).
 ; ---------------------------------------------------------------------------
 
 init_dac:
 	ld	a, 0x22
 	ld	e, 0x00
-	call	ym_write		; LFO off
+	call	ym0_write			; LFO off
 	ld	a, 0x27
 	ld	e, 0x00
-	call	ym_write		; timers off
+	call	ym0_write			; timers off, ch3 normal
 
-	; Key off all six channels
-	ld	b, 0
-.koff:
+	; Key-off every FM channel (0,1,2,4,5,6 — slot bits clear).
+	ld	e, 0x00
 	ld	a, 0x28
-	ld	e, b
-	call	ym_write
-	inc	b
-	ld	a, b
-	cp	3
-	jr	c, .koff
-	ld	b, 4
-.koff2:
+	call	ym0_write
+	ld	e, 0x01
 	ld	a, 0x28
-	ld	e, b
-	call	ym_write
-	inc	b
-	ld	a, b
-	cp	7
-	jr	c, .koff2
+	call	ym0_write
+	ld	e, 0x02
+	ld	a, 0x28
+	call	ym0_write
+	ld	e, 0x04
+	ld	a, 0x28
+	call	ym0_write
+	ld	e, 0x05
+	ld	a, 0x28
+	call	ym0_write
+	ld	e, 0x06
+	ld	a, 0x28
+	call	ym0_write
 
-	; Centre silence on the DAC data port, then enable DAC mode.
+	; Channel 6 stereo enable (part 1, reg $B6): L|R = %11xxxxxx
+	ld	a, 0xB6
+	ld	e, 0xC0
+	call	ym1_write
+
+	; Centre the DAC and enable it (global regs on part 0).
 	ld	a, 0x2A
 	ld	e, 0x80
-	call	ym_write
+	call	ym0_write			; silence (unsigned centre)
 	ld	a, 0x2B
 	ld	e, 0x80
-	call	ym_write		; DAC enable
+	call	ym0_write			; DAC enable
 	ret
 
 ; ---------------------------------------------------------------------------
-; Bank window: shift 9 bits (68K A15..A23) into $6000, LSB first.
-; HL = bank number (cart_addr >> 15)
+; Bank = cart_addr >> 15. Nine writes to $6000, bit0 each time, A15 first.
+; HL = bank number.
 ; ---------------------------------------------------------------------------
 
 set_bank:
@@ -149,12 +164,11 @@ set_bank:
 	ret
 
 ; ---------------------------------------------------------------------------
-; Stream PCM from the banked cartridge window to the YM2612 DAC.
-; C = per-sample delay (DJNZ count)
+; Stream PCM: C = delay count (Amiga period analogue).
+; Sample data is unsigned, centre 0x80.
 ; ---------------------------------------------------------------------------
 
 play_pcm:
-	; Install bank for the sample
 	ld	hl, (PCM_BANK)
 	call	set_bank
 
@@ -164,17 +178,16 @@ play_pcm:
 	or	e
 	ret	z
 
-	; Point YM address latch at DAC data ($2A) once per stream.
+	; Latch DAC data register once; keep streaming data bytes after.
 	call	ym_wait
 	ld	a, 0x2A
-	ld	(YM_ADDR), a
+	ld	(YM0_ADDR), a
 
 .sample:
-	ld	a, (hl)
+	ld	a, (hl)			; unsigned PCM
 	inc	hl
-	ld	(YM_DATA), a
+	ld	(YM0_DATA), a
 
-	; Pace the stream. Outer count in B from C.
 	ld	b, c
 .delay:
 	djnz	.delay
@@ -184,7 +197,6 @@ play_pcm:
 	or	e
 	jr	nz, .sample
 
-	; Return DAC to centre so the next hit starts clean.
 	ld	a, 0x80
-	ld	(YM_DATA), a
+	ld	(YM0_DATA), a		; rest at centre
 	ret
