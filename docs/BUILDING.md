@@ -122,7 +122,8 @@ EMULATOR=/usr/local/bin/blastem ./run_emulator.sh
 ROM_PATH=/tmp/sample-game.bin EMULATOR=/path/to/emulator ./run_emulator.sh
 ```
 
-The compatibility wrapper `emulator.sh` forwards to `run_emulator.sh`.
+`emulator.sh` always rebuilds the ROM before forwarding to `run_emulator.sh`.
+Use `run_emulator.sh` directly when an existing ROM can be reused.
 
 ## Troubleshooting
 
