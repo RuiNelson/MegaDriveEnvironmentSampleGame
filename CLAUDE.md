@@ -186,6 +186,8 @@ Do not commit build directories, fetched dependencies, caches, screenshots,
 generated ROMs, object/disassembly files, or locally regenerated PCM unless
 the task explicitly calls for a versioned source asset update.
 
-When checked out as a submodule, do not commit, publish, or update the parent
-gitlink unless explicitly requested. Report which PC tests, ROM validations,
-emulators, or real hardware were used.
+After validation, commit and push this repository to `main` automatically
+unless the user explicitly asks not to publish. When checked out as a
+submodule, publish this repository first and then update the parent gitlink.
+Preserve unrelated work and never force-push or rewrite history. Report which
+PC tests, ROM validations, emulators, or real hardware were used.
