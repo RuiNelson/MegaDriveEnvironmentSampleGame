@@ -35,6 +35,12 @@
 
 #include "MegaDriveEnvironmentSampleGame/SampleGame.hpp"
 #include "MegaDriveEnvironmentSampleGame/Memory.hpp"
+#include "MegaDriveEnvironmentSampleGame/runtime_tests/TestFontPNG.hpp"
+#include "MegaDriveEnvironmentSampleGame/runtime_tests/TestFontSDL.hpp"
+#include "MegaDriveEnvironmentSampleGame/runtime_tests/controllers/TestControllers.hpp"
+#include "MegaDriveEnvironmentSampleGame/runtime_tests/sound/AudioHeadlessTest.hpp"
+#include "MegaDriveEnvironmentSampleGame/runtime_tests/sound/TestSound.hpp"
+#include "MegaDriveEnvironmentSampleGame/runtime_tests/vdp_tests/TestVDP.hpp"
 #include "config/controls/ControlsConfigUI.hpp"
 #include "system/MegaDriveEnvironment.hpp"
 
@@ -182,6 +188,9 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
  * - `--rom FILE` — load a different raw asset ROM instead of the build default.
  * - `--frames N` — exit after N VBlank ticks (unsigned decimal, no junk suffix).
  * - `--debug` — enable MegaDriveEnvironment debug logging.
+ * - `--testVDP`, `--testControllers`, `--testSound` — interactive runtime diagnostics.
+ * - `--testAudioHeadless` / `--writeAudioWav FILE` — automated audio diagnostics.
+ * - `--testFontSDL`, `--testFontPNG` — host font diagnostics.
  * - `-V` / `--version` — print version and exit.
  * - `-h` / `--help` — print usage and exit.
  */
@@ -189,7 +198,14 @@ int main(int argc, char **argv) {
     unsigned frameLimit = 0;
     bool debug = false;
     bool configureControls = false;
+    bool testFontSDLFlag = false;
+    bool testFontPNGFlag = false;
+    bool testVDPFlag = false;
+    bool testControllersFlag = false;
+    bool testSoundFlag = false;
+    bool testAudioHeadlessFlag = false;
     std::string romPath = SAMPLE_ASSET_ROM_PATH;
+    std::string audioWavPath;
 
     // Parsing is deliberately implemented with standard-library primitives so
     // the sample does not need a command-line processing dependency.
@@ -197,6 +213,24 @@ int main(int argc, char **argv) {
         const std::string_view argument{argv[index]};
         if (argument == "--debug") {
             debug = true;
+        } else if (argument == "--testFontSDL") {
+            testFontSDLFlag = true;
+        } else if (argument == "--testFontPNG") {
+            testFontPNGFlag = true;
+        } else if (argument == "--testVDP") {
+            testVDPFlag = true;
+        } else if (argument == "--testControllers") {
+            testControllersFlag = true;
+        } else if (argument == "--testSound") {
+            testSoundFlag = true;
+        } else if (argument == "--testAudioHeadless") {
+            testAudioHeadlessFlag = true;
+        } else if (argument == "--writeAudioWav") {
+            if (index + 1 >= argc) {
+                std::fprintf(stderr, "Missing value for --writeAudioWav\n");
+                return 2;
+            }
+            audioWavPath = argv[++index];
         } else if (argument == "--config-controls" || argument == "--configControls") {
             configureControls = true;
         } else if (argument == "--rom") {
@@ -229,6 +263,13 @@ int main(int argc, char **argv) {
                         "  --rom FILE             Load a different raw asset ROM\n"
                         "  --frames N             Exit after N frames (smoke tests and CI)\n"
                         "  --debug                Enable MegaDriveEnvironment debug logging\n"
+                        "  --testVDP              Run the interactive VDP diagnostic suite\n"
+                        "  --testControllers      Run the interactive controller diagnostic\n"
+                        "  --testSound            Run the interactive sound and Z80 diagnostic\n"
+                        "  --testAudioHeadless    Run headless audio regression diagnostics\n"
+                        "  --writeAudioWav FILE   Write the headless audio diagnostic to a WAV file\n"
+                        "  --testFontSDL          Run the interactive SDL font diagnostic\n"
+                        "  --testFontPNG          Export the font diagnostic to a PNG file\n"
                         "  -V, --version          Print the program version\n"
                         "  -h, --help             Show this help\n");
             return 0;
@@ -245,6 +286,40 @@ int main(int argc, char **argv) {
         runControlsConfig();
         return 0;
     }
+
+    if (testAudioHeadlessFlag || !audioWavPath.empty()) {
+        return runAudioHeadlessTest({audioWavPath});
+    }
+
+    bool ranDiagnostic = false;
+    if (testFontSDLFlag) {
+        testFontSDL();
+        ranDiagnostic = true;
+    }
+    if (testFontPNGFlag) {
+        testFontPNG();
+        ranDiagnostic = true;
+    }
+    if (testVDPFlag) {
+        VDPTester tester;
+        tester.setDebugLog(debug);
+        tester.boot();
+        ranDiagnostic = true;
+    }
+    if (testControllersFlag) {
+        TestControllers tester;
+        tester.setDebugLog(debug);
+        tester.boot();
+        ranDiagnostic = true;
+    }
+    if (testSoundFlag) {
+        TestSound tester;
+        tester.setDebugLog(debug);
+        tester.boot();
+        ranDiagnostic = true;
+    }
+    if (ranDiagnostic)
+        return 0;
 
     EnvironmentApplication application{std::move(romPath), frameLimit};
     application.setDebugLog(debug);

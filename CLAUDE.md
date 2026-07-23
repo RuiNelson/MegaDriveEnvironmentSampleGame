@@ -32,6 +32,7 @@ read the relevant documents under `docs/`:
 | --- | --- |
 | `include/MegaDriveEnvironmentSampleGame/` | Flat public/shared headers |
 | `src/` | Shared and target-specific implementations |
+| `src/runtime_tests/` | PC-only VDP, controller, sound, and font diagnostics |
 | `config/shared_sources.json` | Canonical shared `.cpp` manifest |
 | `cmake/` | PC build, assets, tests, and project options |
 | `megadrive/` | Vector table, Sega header, startup/linker material |

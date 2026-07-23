@@ -73,7 +73,14 @@ target_link_libraries(sample_memory_pc PUBLIC
 )
 sample_enable_warnings(sample_memory_pc)
 
-add_executable(mega_drive_environment_sample_game src/main-PC.cpp)
+file(GLOB_RECURSE SAMPLE_RUNTIME_TEST_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime_tests/*.cpp"
+)
+
+add_executable(mega_drive_environment_sample_game
+    src/main-PC.cpp
+    ${SAMPLE_RUNTIME_TEST_SOURCES}
+)
 add_executable(SampleGame::PC ALIAS mega_drive_environment_sample_game)
 add_dependencies(mega_drive_environment_sample_game sample_asset_rom)
 target_compile_definitions(mega_drive_environment_sample_game PRIVATE
@@ -81,6 +88,13 @@ target_compile_definitions(mega_drive_environment_sample_game PRIVATE
     SAMPLE_GAME_VERSION="${PROJECT_VERSION}"
 )
 target_link_libraries(mega_drive_environment_sample_game PRIVATE sample_memory_pc)
+if(TARGET png_shared)
+    target_link_libraries(mega_drive_environment_sample_game PRIVATE png_shared)
+elseif(TARGET png_static)
+    target_link_libraries(mega_drive_environment_sample_game PRIVATE png_static)
+else()
+    message(FATAL_ERROR "MegaDriveEnvironment did not provide a libpng target for runtime diagnostics")
+endif()
 
 include(CTest)
 if(BUILD_TESTING)

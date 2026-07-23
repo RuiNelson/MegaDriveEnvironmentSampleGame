@@ -48,6 +48,13 @@ The executable accepts:
 --rom FILE              Load another raw asset ROM
 --frames N              Exit after N VBlank frames
 --debug                 Enable environment logging
+--testVDP               Run the interactive VDP diagnostic suite
+--testControllers       Run the interactive controller diagnostic
+--testSound             Run the interactive sound and Z80 diagnostic
+--testAudioHeadless     Run headless audio regression diagnostics
+--writeAudioWav FILE    Write the headless audio diagnostic to a WAV file
+--testFontSDL           Run the interactive SDL font diagnostic
+--testFontPNG           Export the font diagnostic to a PNG file
 --version               Print the project version
 --help                  Show all options
 ```
