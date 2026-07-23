@@ -1,103 +1,191 @@
-# CLAUDE.md
+# Agent guide
 
-Guidance for agents working in `MegaDriveEnvironmentSampleGame`.
+Instructions for automated contributors working in
+`MegaDriveEnvironmentSampleGame`.
 
-## Purpose
+## Purpose and non-negotiable architecture
 
-This repository is a deliberately small dual-target game for the local
-`MegaDriveEnvironment` and real Mega Drive hardware. Keep the shared game code
-portable and the target-specific implementations explicit. The environment
-target and the bootable ROM for real hardware both demonstrate VDP setup, controller
-input, game state, sprites, and text.
+This repository is a small game whose core C++ runs in two environments:
 
-## Build
+- as a native PC program hosted by `MegaDriveEnvironment`;
+- as a bootable ROM on real Mega Drive hardware.
 
-The `MegaDriveEnvironment` repository must be available next to this one, or
-its location must be supplied explicitly:
+The shared game is the product. Keep target adapters narrow and explicit; do
+not create a second renderer, input implementation, game loop, or behavior for
+the PC target.
 
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-./build/mega_drive_environment_sample_game
-```
+`../MegaDriveEnvironment` is the owned sibling runtime. `../Genesis-Plus-GX`
+is an upstream, read-only reference: never edit, patch, reformat, commit, or
+update it.
 
-Links shared `MegaDriveEnvironment` by default. Implementation-only environment
-edits rebuild the dylib without re-linking the sample (`CMAKE_LINK_DEPENDS_NO_SHARED`).
+Before changing files, inspect repository status, preserve unrelated work, and
+read the relevant documents under `docs/`:
 
-Prefer the repository entry points for normal PC workflows:
+- `ARCHITECTURE.md` for target boundaries and runtime flow;
+- `MEMORY_MODEL.md` for portable memory access;
+- `ASSETS.md` for generated asset ownership;
+- `BUILDING.md` for PC and real-hardware commands.
+
+## Repository layout
+
+| Path | Responsibility |
+| --- | --- |
+| `include/MegaDriveEnvironmentSampleGame/` | Flat public/shared headers |
+| `src/` | Shared and target-specific implementations |
+| `config/shared_sources.json` | Canonical shared `.cpp` manifest |
+| `cmake/` | PC build, assets, tests, and project options |
+| `megadrive/` | Vector table, Sega header, startup/linker material |
+| `sound/z80/` | Z80 audio driver source |
+| `sound/tools/` | Sound conversion and Z80 assembly helpers |
+| `tools/` | Asset packer and real-hardware ROM builder |
+| `tests/` | C++ gameplay tests and Python asset/build tests |
+
+Shared source files use plain names. A source file that exists for only one
+target uses `-PC` or `-MD`, such as `Memory-PC.cpp` and `Memory-MD.cpp`.
+
+## Shared-code rules
+
+- Use C++23 and keep shared gameplay allocation-free.
+- Compile shared C++ with exactly one target definition: `PC` or `MEGADRIVE`.
+- Include only public `MegaDriveEnvironment` headers.
+- Keep `SampleGame`, `VdpUtils`, controllers, gameplay, and audio source
+  unchanged between targets.
+- Drive shared behavior through VBlank/HBlank. The PC entry point overrides
+  `vSync()`/`hSync()`; hardware IRQ6/IRQ4 forwards to the same `SampleGame`
+  methods.
+- Access runtime hardware only through the free functions in
+  `sample::memory`. `Memory.hpp` is the single API; `Memory-PC.cpp` binds a host
+  backend and `Memory-MD.cpp` accesses the 68000 bus.
+- Never execute the `MEGADRIVE` memory implementation on the host because it
+  dereferences the real console address map.
+- Read controller state through `ControllerReader` and memory-mapped I/O, not
+  SDL or `Controllers::getCurrentState()` from shared game code.
+- Keep command-line parsing dependency-free in `src/main-PC.cpp`.
+- Keep `config/shared_sources.json` authoritative; both CMake and the ROM
+  builder consume it.
+
+The hardware build intentionally provides no `operator new/delete`. Prefer
+automatic storage and embedded fixed-capacity structures.
+
+## Memory and audio invariants
+
+Preserve these Work RAM reservations:
+
+- `$FF0000-$FF0003`: IRQ bridge pointer;
+- `$FF1000-$FF2FFF`: `BoingBallDemo` dynamic tile/DMA buffer.
+
+HBlank line state belongs to `SampleGame`, not to a fixed Work RAM shim.
+
+The Boing Ball bounce effect streams
+`sound/amiga_assets/boing_pcm.bin` through the Z80 and YM2612 DAC using
+`sound/z80/boing_ball_sfx.s` and `BoingBallFmSfx`. The main game uses
+`PsgSoundEffects` on the SN76489. Shared audio code is memory-mapped only:
+
+- PSG `$C00011`;
+- Z80 RAM `$A00000`;
+- bus request `$A11100`;
+- reset `$A11200`;
+- Z80 bank register `$6000`;
+- Z80-local YM2612 `$4000`.
+
+Do not call host sound or Z80 APIs from shared audio code.
+
+## Asset pipeline
+
+`tools/build_assets.py` owns the raw, headerless 32-Mbit asset ROM. It
+assembles Z80 source via `sound/tools/assemble_z80.py`, packs named blobs at
+the end of the image, and emits `AssetLayout.hpp` and `asset_layout.json`.
+`tools/build_asset_rom.py` is a compatibility wrapper.
+
+Normal builds consume the checked-in
+`sound/amiga_assets/boing_pcm.bin` and write generated files only below the
+build directory. PCM regeneration is an explicit maintenance action, not part
+of an ordinary build.
+
+The real-hardware builder embeds the packed asset tail in the bootable ROM.
+Keep the hand-written vector table and Sega header in `megadrive/header.s`.
+`code.o`, `code.disasm`, `blobs.s`, ELF/map files, and built ROMs are generated
+artifacts.
+
+## Build the PC target
+
+Requirements are CMake 3.24+, a C++23 compiler, Python 3, SDL3, `z80asm`, and a
+sibling `MegaDriveEnvironment` checkout.
+
+Use the repository entry points:
 
 ```bash
 ./build_pc.sh
-./configure_controls.sh
 ./run_pc.sh
+./configure_controls.sh
 ```
 
-Build the real Mega Drive ROM with:
+Or use CMake directly:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DMEGADRIVE_ENVIRONMENT_DIR=../MegaDriveEnvironment
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+```
+
+Useful presets:
+
+```bash
+cmake --preset dev
+cmake --build --preset dev
+ctest --preset dev
+```
+
+The PC target links shared `MegaDriveEnvironment` by default and sets
+`CMAKE_LINK_DEPENDS_NO_SHARED`, so an implementation-only runtime rebuild does
+not force the game executable to relink.
+
+## Build the real-hardware target
+
+The ROM pipeline requires Python 3, `z80asm`, and the `m68k-elf` GCC/binutils
+toolchain, including `m68k-elf-as`:
 
 ```bash
 ./build_megadrive.sh
 ```
 
-The real-hardware pipeline requires the `m68k-elf` GCC and binutils tools,
-including `m68k-elf-as`. `tools/build_megadrive_rom.py` owns the compilation,
-assembly, link, checksum, and structural validation steps.
+`tools/build_megadrive_rom.py` owns compilation, assembly, LTO link, Sega
+checksum, asset embedding, and structural validation. Shared C++ is compiled
+with `-Os -flto`; preserve `-Os` as the established size/speed policy unless a
+task explicitly evaluates a different tradeoff.
+
+Do not treat an emulator-only result as hardware validation. When a change
+touches memory layout, interrupts, DMA, or audio timing, validate the ROM
+structure and report which runtime environments were actually tested.
+
+## Validation
+
+Use the consolidated check for changes spanning game logic and tools:
 
 ```bash
-cmake -S . -B build \
-  -DMEGADRIVE_ENVIRONMENT_DIR=/path/to/MegaDriveEnvironment
+./check.sh
 ```
 
-## Conventions
+For focused work, run the smallest relevant C++ or Python test first, then:
 
-- Use C++23.
-- Include only public `MegaDriveEnvironment` headers.
-- Compile `SampleGame`, `VdpUtils`, controllers, gameplay, and audio unchanged
-  for both targets. Do not add a second renderer or target-specific game loop.
-- Drive the shared game through VBlank and HBlank callbacks: the PC entry point
-  overrides `vSync()`/`hSync()`, while the real-hardware IRQ6/IRQ4 handlers
-  forward to the same `SampleGame` methods.
-- All runtime hardware access from shared game code must go through the
-  free functions in `sample::memory` (`read8`/`write16`/…).
-- Keep public headers flat under `include/MegaDriveEnvironmentSampleGame/` and
-  implementations flat under `src/`. Shared files have plain names; source
-  files that only build for one target use the `-PC` or `-MD` suffix.
-- Keep `config/shared_sources.json` as the canonical list of shared `.cpp`
-  files. Both CMake and the M68k ROM builder read it.
-- Build shared C++ with exactly one target definition: `PC` for
-  MegaDriveEnvironment or `MEGADRIVE` for real hardware.
-- Keep `Memory.hpp` as the single free-function memory API. Its two
-  implementations are `src/Memory-PC.cpp` (bound backend) and
-  `src/Memory-MD.cpp` (direct bus).
-- Controller code must use `ControllerReader` and memory-mapped I/O,
-  not SDL or `Controllers::getCurrentState()` directly.
-- Keep command-line processing dependency-free; extend the manual parser in
-  `src/main-PC.cpp` instead of adding CLI11 or another argument library.
-- `tools/build_assets.py` owns the raw, headerless 32-Mbit asset ROM: it
-  assembles Z80 sources (via `sound/tools/assemble_z80.py`), packs named blobs
-  (PCM, Z80 driver, VDP tiles, …) at the end of the image, and emits
-  `AssetLayout.hpp` plus `asset_layout.json`. Sound conversion lives under
-  `sound/tools/`. `tools/build_asset_rom.py` remains a thin compatibility
-  wrapper. The real-hardware builder embeds the packed tail in a bootable ROM.
-- Normal builds consume the checked-in `sound/amiga_assets/boing_pcm.bin` and
-  must only write generated files below the build directory. PCM regeneration
-  is an explicit maintenance action, not part of every build.
-- Install `z80asm` (https://www.nongnu.org/z80asm/, e.g. `brew install z80asm`)
-  for any build that regenerates assets.
-- Keep the hand-written vector table and Sega header in `megadrive/header.s`.
-  The ROM build compiles shared C++ with `-Os -flto` and links through the GCC
-  driver. `code.o`, `code.disasm`, and `blobs.s` are generated build artifacts
-  and must not be committed.
-- Never execute the `MEGADRIVE` implementation of `sample::memory` on the
-  host; it dereferences the real 68000 address map directly.
-- Keep the shared game allocation-free. The real-hardware build intentionally
-  provides no `operator new/delete`, so use automatic or embedded
-  fixed-capacity storage.
-- Preserve the Work RAM reservations at `$FF0000-$FF0003` for the IRQ bridge
-  pointer and `$FF1000-$FF2FFF` for `BoingBallDemo`'s dynamic tile/DMA buffer.
-  HBlank line tracking is a `SampleGame` member, not a fixed Work RAM shim.
-- Boing Ball bounce SFX stream `sound/amiga_assets/boing_pcm.bin` via Z80 +
-  YM2612 DAC (`sound/z80/boing_ball_sfx.s` + `BoingBallFmSfx`). The main game
-  keeps `PsgSoundEffects` on the SN76489. Shared audio code is memory-mapped
-  only (`$C00011`, `$A00000`, `$A11100`, `$A11200`, Z80 bank `$6000`, YM
-  `$4000`); do not call host sound/Z80 APIs.
-- Do not commit build outputs, fetched dependencies, screenshots, or caches.
+```bash
+cmake --build --preset dev
+ctest --preset dev
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+Build both targets when shared code, the source manifest, memory access, asset
+layout, controller code, interrupts, or audio changes. A PC-only UI/CLI change
+does not require a hardware ROM rebuild unless it alters shared files.
+
+## Generated files and delivery
+
+Do not commit build directories, fetched dependencies, caches, screenshots,
+generated ROMs, object/disassembly files, or locally regenerated PCM unless
+the task explicitly calls for a versioned source asset update.
+
+When checked out as a submodule, do not commit, publish, or update the parent
+gitlink unless explicitly requested. Report which PC tests, ROM validations,
+emulators, or real hardware were used.
