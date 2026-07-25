@@ -31,6 +31,9 @@ class SampleGame final {
     /** Records that a new video frame began; safe to call directly from IRQ6. */
     void onVSync();
 
+    /** Advances the menu-only sky gradient on one HBlank interrupt. */
+    void onHSync();
+
     /**
      * Runs one pending frame outside interrupt context.
      *
@@ -61,6 +64,15 @@ class SampleGame final {
 
     /** Sets up the menu palettes, clears planes and writes menu text. */
     void activateMenu();
+
+    /** Disables menu HBlank before either game takes ownership of the VDP. */
+    void deactivateMenuRaster();
+
+    /** Starts the eight-line sky gradient after the menu frame is composed. */
+    void activateMenuRaster();
+
+    /** Maps the lower 112 pixels of Plane B to the authored ocean tiles. */
+    void renderMenuOcean();
 
     /** Draws the menu title, game list and selection cursor. */
     void renderMenu();
@@ -97,6 +109,8 @@ class SampleGame final {
     bool aWasDown_ = false;
     /** Which game the cursor points to in the menu (0 = Gem, 1 = Boing Ball). */
     std::uint8_t menuSelection_ = 0;
+    /** Next eight-line sky band written by the menu-only HBlank handler. */
+    std::uint8_t nextMenuSkyBand_ = 1;
 };
 
 } // namespace sample

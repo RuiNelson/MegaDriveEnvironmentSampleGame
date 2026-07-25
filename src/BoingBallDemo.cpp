@@ -256,10 +256,15 @@ void BoingBallDemo::activate() {
     vdp::loadPalette(3, kBackdropPalette);
     vdp::writeRegister(0x07, 0x33); // grey backdrop behind the wall grid
 
-    // Only visible name-table cells need replacing during the transition.
-    // Both grid surfaces reference patterns built by uploadBackgroundTiles().
+    // Hide the display while replacing every visible name-table cell. The menu
+    // owns the Window and leaves ocean tiles in Plane B, so both 3D surfaces
+    // must be rebuilt on every entry rather than relying on startup contents.
+    vdp::writeRegister(0x01, 0x34); // display off, DMA, Mode 5, VBlank IRQ
     vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    vdp::fillPlaneArea(vdp::kPlaneB, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    vdp::fillPlaneArea(vdp::kWindowPlane, 0, 0, 40, 28, vdp::tileDescriptor(0));
     mapWallGrid();
+    mapFloorGrid();
     vdp::setHorizontalScroll(0, 0);
     vdp::writeText(vdp::kPlaneA, 2, 1, "SOFTWARE 3D BOING BALL", kFontTile);
     vdp::writeText(vdp::kPlaneA, 31, 1, "FPS", kFontTile);
@@ -271,6 +276,7 @@ void BoingBallDemo::activate() {
     vdp::writeRegister(0x12, static_cast<std::uint8_t>(0x80 | kFloorFirstRow));
 
     renderFps();
+    vdp::writeRegister(0x01, 0x74); // display on, DMA, Mode 5, VBlank IRQ
 }
 
 BounceEvents BoingBallDemo::update(bool zoomIn, bool zoomOut) {
@@ -698,7 +704,9 @@ void BoingBallDemo::uploadBackgroundTiles() {
             }
         }
     }
+}
 
+void BoingBallDemo::mapFloorGrid() {
     // Window cells use screen-space row numbers, so rows 20..27 line up with
     // the vertical position selected in activate().
     for (int row = 0; row < 8; ++row) {

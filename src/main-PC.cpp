@@ -13,7 +13,7 @@
  * | Process entry      | `main(argc, argv)`              | `game_main()` via `header.s`    |
  * | Memory backend     | `memory::bind(SystemMemory)`    | Direct 68000 bus (`Memory-MD`)  |
  * | VBlank callback    | `EnvironmentApplication::vSync` | `game_vsync` → IRQ6             |
- * | HBlank callback    | Disabled by the game VDP setup  | Disabled by the game VDP setup  |
+ * | HBlank callback    | Menu gradient via `hSync`       | Menu gradient via IRQ4          |
  * | Main loop          | `run()` + `runVDPInterrupts()`  | `wait_for_interrupt()` STOP loop|
  *
  * All gameplay, input protocol, audio sequencing and VDP rendering remain in
@@ -72,7 +72,7 @@ namespace {
  *
  * - `run()`     — load assets, initialize the game, pump IRQs and run pending frames;
  * - `vSync()`   — schedule one shared game tick per emulated VBlank;
- * - `hSync()`   — deliberately empty because game HBlank IRQs are disabled.
+ * - `hSync()`   — forward the selection menu's short sky-gradient callback.
  *
  * Actual game rules, rendering and hardware protocols stay inside
  * `sample::SampleGame`; this class must not reimplement them.
@@ -122,9 +122,7 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
         // Initialization can take several host frames while VRAM is cleared.
         // Discard those old events so the first callback represents a fresh
         // displayed frame rather than replaying initialization-time IRQs.
-        VDP::Interrupt interrupt;
-        while (vdp().popInterrupt(interrupt)) {
-        }
+        vdp().discardPendingInterrupts();
 
         while (!shouldQuit() && !frameLimitReached_) {
             runVDPInterrupts();
@@ -146,8 +144,9 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
         frameLimitReached_ = frameLimit_ != 0 && frameCount_ >= frameLimit_;
     }
 
-    /** Unused: the game keeps the VDP HBlank interrupt disabled. */
+    /** Emulated menu-only HBlank hook; games keep HINT disabled. */
     void hSync(int /*scanline*/) override {
+        game_.onHSync();
     }
 
     /** Filesystem path of the raw asset ROM passed to `loadROM`. */

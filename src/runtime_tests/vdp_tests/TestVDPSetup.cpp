@@ -26,9 +26,7 @@ void VDPTester::vSync() {
 /** Waits for the next FRESH VBlank (discards interrupts queued mid-setup first). */
 void VDPTester::waitVBlank() {
     // Drop any interrupts scheduled before now (stale inter-test / mid-setup frames).
-    VDP::Interrupt discard;
-    while (vdp().popInterrupt(discard)) {
-    }
+    vdp().discardPendingInterrupts();
 
     // Dispatch interrupts on this thread until the next VSync arrives.
     frameReady_     = false;

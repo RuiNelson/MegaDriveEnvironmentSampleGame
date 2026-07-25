@@ -53,8 +53,10 @@ target uses `-PC` or `-MD`, such as `Memory-PC.cpp` and `Memory-MD.cpp`.
   unchanged between targets.
 - Drive shared frames from VBlank, but keep the IRQ6 callback short: it only
   schedules work that the target main loop consumes outside interrupt context.
-  The game keeps HBlank IRQ disabled; the PC `hSync()` override is an unused
-  adapter required by the host interface.
+  HBlank IRQ is enabled only on the selection menu for its 14-band sky
+  gradient, then disabled at the 112-pixel ocean horizon. Both games keep HINT
+  disabled. The PC `hSync()` override and hardware IRQ4 forward the same
+  `SampleGame` callback.
 - Access runtime hardware only through the free functions in
   `sample::memory`. `Memory.hpp` is the single API; `Memory-PC.cpp` binds a host
   backend and `Memory-MD.cpp` accesses the 68000 bus.
@@ -93,6 +95,11 @@ Do not call host sound or Z80 APIs from shared audio code.
 The Boing Ball rasterizer deliberately uses visible NTSC CPU time up to line
 192. Its inactive-bank upload is capped at 160 tiles (5120 bytes) per VBlank;
 a maximum 128x128, 256-tile surface is uploaded over two VBlanks.
+
+The selection menu uses Window as its front text layer and Plane B as its
+scenery layer. The upper 112 pixels are a light-blue-to-white HBlank sky and
+the lower 112 pixels are an opaque, authored tile ocean inspired by the local
+`sea.png` visual reference. Do not enable HINT after entering either game.
 
 ## Asset pipeline
 

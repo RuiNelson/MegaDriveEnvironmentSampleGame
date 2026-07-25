@@ -49,6 +49,11 @@ void finishInitialization();
 /** Sets the full-screen horizontal offsets used without HBlank interrupts. */
 void setHorizontalScroll(std::uint16_t planeA, std::uint16_t planeB);
 
+/** Replaces one CRAM entry; suitable for a short HBlank raster update. */
+void writePaletteColor(std::uint8_t palette,
+                       std::uint8_t color,
+                       std::uint16_t value);
+
 /**
  * Loads all 16 colors of a hardware palette.
  *
