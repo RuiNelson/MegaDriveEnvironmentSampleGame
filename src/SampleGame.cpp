@@ -28,8 +28,6 @@ constexpr std::uint16_t kFloorRomTile = 100;
 constexpr int kCookieBannerFirstRow = 7;
 constexpr int kCookieBannerLastRow = 20;
 constexpr const char *kBlankScreenRow = "                                        ";
-constexpr int kVisibleScanlineCount = 224;
-
 // CRAM words use the Mega Drive's 0000BBB0GGG0RRR0 channel layout.
 constexpr std::uint16_t kTextPalette[16]{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -58,38 +56,19 @@ void SampleGame::initialize() {
 }
 
 void SampleGame::onVSync() {
-    // IRQ6 can pre-empt the final IRQ4 at line 223 on real hardware. Populate
-    // that last block here during VBlank so both targets complete all 224
-    // per-line entries before the next displayed frame.
-    writeBackgroundWaveBlock(kVisibleScanlineCount - vdp::kHSyncLineBatch);
-    // Restart the software line counter; HINT itself never reports a line index.
-    nextHScrollLine_ = 0;
+    framePending_ = true;
+}
+
+bool SampleGame::runPendingFrame() {
+    if (!framePending_) {
+        return false;
+    }
+    // Consume before doing any work so an overrun into the next VBlank leaves
+    // a fresh request pending instead of erasing it on return.
+    framePending_ = false;
     update();
     render();
-}
-
-void SampleGame::onHSync() {
-    if (screen_ == Screen::Menu) {
-        return;
-    }
-    // Skip once the final visible block is reserved for onVSync() (lines 208-223).
-    if (nextHScrollLine_ >= kVisibleScanlineCount - vdp::kHSyncLineBatch) {
-        return;
-    }
-
-    // One address command starts a contiguous block, then VDP auto-increment
-    // advances through all Plane A / Plane B pairs. This keeps the real 68000
-    // IRQ short enough while preserving an independent offset for every line.
-    writeBackgroundWaveBlock(nextHScrollLine_);
-    nextHScrollLine_ += vdp::kHSyncLineBatch;
-}
-
-void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
-    vdp::beginHorizontalScrollLines(firstScanline);
-    const int endScanline = firstScanline + vdp::kHSyncLineBatch;
-    for (int currentScanline = firstScanline; currentScanline < endScanline; ++currentScanline) {
-        vdp::appendHorizontalScrollLine(0, 0);
-    }
+    return true;
 }
 
 void SampleGame::initializeGraphics() {

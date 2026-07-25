@@ -13,7 +13,7 @@
  * | Process entry      | `main(argc, argv)`              | `game_main()` via `header.s`    |
  * | Memory backend     | `memory::bind(SystemMemory)`    | Direct 68000 bus (`Memory-MD`)  |
  * | VBlank callback    | `EnvironmentApplication::vSync` | `game_vsync` → IRQ6             |
- * | HBlank callback    | `EnvironmentApplication::hSync` | `game_hsync` → IRQ4             |
+ * | HBlank callback    | Disabled by the game VDP setup  | Disabled by the game VDP setup  |
  * | Main loop          | `run()` + `runVDPInterrupts()`  | `wait_for_interrupt()` STOP loop|
  *
  * All gameplay, input protocol, audio sequencing and VDP rendering remain in
@@ -68,11 +68,11 @@ namespace {
  * @brief Host bootstrap that wires MegaDriveEnvironment IRQs to SampleGame.
  *
  * Inherits the full SDL/window/VDP host runtime from `MegaDriveEnvironment` and
- * overrides only the three hooks required by this sample:
+ * overrides the environment hooks required by this sample:
  *
- * - `run()`     — load assets, initialize the game, pump IRQs until quit/limit;
- * - `vSync()`   — one shared game tick per emulated VBlank;
- * - `hSync()`   — batched horizontal-scroll work (line index tracked in SampleGame).
+ * - `run()`     — load assets, initialize the game, pump IRQs and run pending frames;
+ * - `vSync()`   — schedule one shared game tick per emulated VBlank;
+ * - `hSync()`   — deliberately empty because game HBlank IRQs are disabled.
  *
  * Actual game rules, rendering and hardware protocols stay inside
  * `sample::SampleGame`; this class must not reimplement them.
@@ -110,10 +110,10 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
      * 1. Map the asset ROM into the emulated 68000 address space.
      * 2. Run shared one-shot initialization (controllers, audio, VDP, scene).
      * 3. Drain any VDP interrupts queued during that long init so the first
-     *    `vSync`/`hSync` reflects a fresh displayed frame, not stale IRQs.
+     *    `vSync` reflects a fresh displayed frame, not a stale IRQ.
      * 4. Until the user quits or `--frames` is exhausted: dispatch pending
-     *    VDP interrupts (which call `vSync`/`hSync`) and `pace()` the host
-     *    to real-time video timing.
+     *    VDP interrupts, execute the scheduled frame outside the callback, and
+     *    `pace()` the host to real-time video timing.
      */
     void run() override {
         loadROM(romPath_);
@@ -128,16 +128,17 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
 
         while (!shouldQuit() && !frameLimitReached_) {
             runVDPInterrupts();
+            (void)game_.runPendingFrame();
             pace();
         }
     }
 
     /**
-     * @brief Emulated VBlank hook; advances one full shared game frame.
+     * @brief Emulated VBlank hook; schedules one shared game frame.
      *
      * Called from the environment when the VDP raises a vertical interrupt.
-     * Forwards into `SampleGame::onVSync()` (identical contract to hardware
-     * IRQ6) and updates the optional frame-limit counter used by CI.
+     * The callback mirrors the short hardware IRQ6 path. Potentially long
+     * rendering work is consumed by run() after interrupt dispatch returns.
      */
     void vSync() override {
         game_.onVSync();
@@ -145,15 +146,8 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
         frameLimitReached_ = frameLimit_ != 0 && frameCount_ >= frameLimit_;
     }
 
-    /**
-     * @brief Emulated HBlank hook for batched horizontal-scroll work.
-     *
-     * The environment reports the scanline that raised HINT, but the shared
-     * game ignores it and advances its own first-line counter so PC and real
-     * hardware stay identical (hardware HINT has no line payload at all).
-     */
+    /** Unused: the game keeps the VDP HBlank interrupt disabled. */
     void hSync(int /*scanline*/) override {
-        game_.onHSync();
     }
 
     /** Filesystem path of the raw asset ROM passed to `loadROM`. */

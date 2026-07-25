@@ -14,6 +14,9 @@ constexpr std::uint16_t kFontTile = 1;
 constexpr std::uint16_t kBallBankTileCount = 256;
 constexpr std::uint16_t kBallBank0FirstTile = 128;
 constexpr std::uint16_t kBallBank1FirstTile = kBallBank0FirstTile + kBallBankTileCount;
+// 160 tiles are 5120 bytes. This leaves useful headroom in the NTSC H40
+// VBlank for SAT, palette, text and occasional shadow-tile writes.
+constexpr std::uint16_t kMaximumDmaTilesPerVBlank = 160;
 constexpr std::uint16_t kShadowFirstTile = kBallBank1FirstTile + kBallBankTileCount;
 constexpr std::uint16_t kWallFirstTile = kShadowFirstTile + 16;
 constexpr std::uint16_t kWallTileCount = 3 * 3;
@@ -257,10 +260,7 @@ void BoingBallDemo::activate() {
     // Both grid surfaces reference patterns built by uploadBackgroundTiles().
     vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
     mapWallGrid();
-    vdp::beginHorizontalScrollLines(0);
-    for (int scanline = 0; scanline < 224; ++scanline) {
-        vdp::appendHorizontalScrollLine(0, 0);
-    }
+    vdp::setHorizontalScroll(0, 0);
     vdp::writeText(vdp::kPlaneA, 2, 1, "SOFTWARE 3D BOING BALL", kFontTile);
     vdp::writeText(vdp::kPlaneA, 31, 1, "FPS", kFontTile);
     vdp::writeText(vdp::kPlaneA, 7, 3, "UP/DOWN ZOOM   START RETURN", kFontTile);
@@ -322,19 +322,28 @@ void BoingBallDemo::render() {
     if (surfaceReadyForDma_) {
         const auto inactiveBankFirstTile = displayBank_ == 0
             ? kBallBank1FirstTile : kBallBank0FirstTile;
-        vdp::dmaToVram(kTileBufferAddress,
-                       static_cast<std::uint16_t>(inactiveBankFirstTile * 32),
-                       static_cast<std::uint16_t>(rasterTileCount_ * 16));
+        const auto remainingTiles = static_cast<std::uint16_t>(
+            rasterTileCount_ - dmaNextTile_);
+        const auto dmaTileCount = remainingTiles < kMaximumDmaTilesPerVBlank
+            ? remainingTiles : kMaximumDmaTilesPerVBlank;
+        vdp::dmaToVram(
+            kTileBufferAddress + static_cast<memory::Address>(dmaNextTile_) * 32u,
+            static_cast<std::uint16_t>((inactiveBankFirstTile + dmaNextTile_) * 32),
+            static_cast<std::uint16_t>(dmaTileCount * 16));
+        dmaNextTile_ = static_cast<std::uint16_t>(dmaNextTile_ + dmaTileCount);
 
-        displayBank_ ^= 1u;
-        if (displayedBallSize_ != rasterBallSize_) {
-            shadowNeedsUpload_ = true;
+        if (dmaNextTile_ == rasterTileCount_) {
+            dmaNextTile_ = 0;
+            displayBank_ ^= 1u;
+            if (displayedBallSize_ != rasterBallSize_) {
+                shadowNeedsUpload_ = true;
+            }
+            displayedBallSize_ = rasterBallSize_;
+            surfaceVisible_ = true;
+            ++framesInSample_;
+            surfaceReadyForDma_ = false;
+            beginSurfaceRaster();
         }
-        displayedBallSize_ = rasterBallSize_;
-        surfaceVisible_ = true;
-        ++framesInSample_;
-        surfaceReadyForDma_ = false;
-        beginSurfaceRaster();
     }
 
     if (++sampleAge_ >= refreshRate_) {
@@ -500,6 +509,7 @@ void BoingBallDemo::beginSurfaceRaster() {
     rasterTileCount_ = static_cast<std::uint16_t>(
         rasterTileDimension_ * rasterTileDimension_);
     rasterNextTile_ = 0;
+    dmaNextTile_ = 0;
     rasterBlockX_ = 0;
     rasterBlockY_ = 0;
     rasterTileX_ = 0;

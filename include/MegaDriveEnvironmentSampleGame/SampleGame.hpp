@@ -28,20 +28,17 @@ class SampleGame final {
     /** Configures the controller, PSG, Z80 FM demo driver, VDP and initial scene. */
     void initialize();
 
-    /**
-     * Advances input, gameplay, sound and rendering once per VBlank IRQ.
-     * Also finishes the last H-scroll block and resets the HBlank line counter.
-     */
+    /** Records that a new video frame began; safe to call directly from IRQ6. */
     void onVSync();
 
     /**
-     * Applies a raster scroll effect when the VDP raises an HBlank IRQ.
+     * Runs one pending frame outside interrupt context.
      *
-     * The hardware HINT does not report a scanline index, and the host VDP's
-     * line argument is not required either: this method advances an internal
-     * first-line counter (0, 16, 32, …) so both targets stay in lockstep.
+     * Returns false when no VBlank has requested work. The Boing Ball renderer
+     * may intentionally occupy visible-line CPU time, so this must never be
+     * called from the level-6 interrupt handler.
      */
-    void onHSync();
+    [[nodiscard]] bool runPendingFrame();
 
   private:
     enum class Screen : std::uint8_t {
@@ -74,9 +71,6 @@ class SampleGame final {
     /** Erases the cookie notice before normal gameplay is shown. */
     void clearCookieBanner();
 
-    /** Writes one contiguous block of Plane B per-scanline wave offsets. */
-    void writeBackgroundWaveBlock(int firstScanline);
-
     /** Memory-mapped three-button controller decoder. */
     controllers::ControllerReader player1Controller_;
     /** Platform-independent entities, scoring, collision and phase state. */
@@ -87,11 +81,8 @@ class SampleGame final {
     audio::BoingBallFmSfx boingBallFmSfx_;
     /** Shared fixed-point and software-rendered Start-screen demo. */
     demo::BoingBallDemo boingBallDemo_;
-    /**
-     * First scanline of the next H-scroll block written by onHSync().
-     * Reset to 0 on each VBlank; advanced by kHSyncLineBatch per HBlank.
-     */
-    int nextHScrollLine_ = 0;
+    /** Set by IRQ6 and consumed before normal frame work begins. */
+    volatile bool framePending_ = false;
     /** Keeps gameplay paused until the player accepts the satirical notice. */
     bool cookieConsentAccepted_ = false;
     /** Prevents the acceptance press from also resetting the game. */

@@ -46,17 +46,17 @@ void setCramWrite(std::uint16_t address) {
 
 void initialize() {
     // Configure both targets exactly like the physical VDP. The display stays
-    // disabled while tables are populated. H/V interrupt callbacks drive the
-    // shared game once initialization has completed.
-    writeRegister(0x00, 0x14); // full CRAM palette + HBlank IRQ
+    // disabled while tables are populated. VBlank schedules the shared game
+    // once initialization has completed; game HBlank interrupts stay disabled.
+    writeRegister(0x00, 0x04); // full CRAM palette, HBlank IRQ disabled
     writeRegister(0x01, 0x14); // display disabled, DMA, Mode 5
     writeRegister(0x02, 0x30); // Plane A at 0xC000
     writeRegister(0x03, 0x2C); // Window at 0xB000
     writeRegister(0x04, 0x07); // Plane B at 0xE000
     writeRegister(0x05, 0x68); // sprite table at 0xD000
     writeRegister(0x07, 0x00); // backdrop palette 0, color 0
-    writeRegister(0x0A, kHSyncLineBatch - 1); // HBlank IRQ every sixteen scanlines
-    writeRegister(0x0B, 0x03); // per-scanline horizontal scrolling
+    writeRegister(0x0A, 0xFF); // HBlank counter unused while HINT is disabled
+    writeRegister(0x0B, 0x00); // full-screen horizontal scrolling
     writeRegister(0x0C, 0x81); // H40 (320 pixels), non-interlaced
     writeRegister(0x0D, 0x3C); // HScroll table at 0xF000
     writeRegister(0x0F, 0x02); // auto-increment by one word
@@ -66,20 +66,15 @@ void initialize() {
 
     clearVram();
 
-    // VRAM was cleared above, so every per-scanline scroll pair starts at zero.
+    // VRAM was cleared above, so both full-screen scroll values start at zero.
 }
 
 void finishInitialization() {
     writeRegister(0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
 }
 
-void beginHorizontalScrollLines(int firstScanline) {
-    const auto address = static_cast<std::uint16_t>(kHScrollTable + firstScanline * 4);
-    setVramWrite(address);
-}
-
-void appendHorizontalScrollLine(std::uint16_t planeA,
-                                std::uint16_t planeB) {
+void setHorizontalScroll(std::uint16_t planeA, std::uint16_t planeB) {
+    setVramWrite(kHScrollTable);
     memory::write16(kDataPort, planeA);
     memory::write16(kDataPort, planeB);
 }

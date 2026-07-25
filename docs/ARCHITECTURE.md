@@ -20,7 +20,7 @@ framework. New layers should solve a demonstrated problem.
 | Entry point | `src/main-PC.cpp` | `src/main-MD.cpp` + `megadrive/header.s` |
 | Memory backend | `src/Memory-PC.cpp` | `src/Memory-MD.cpp` |
 | Target definition | `PC=1` | `MEGADRIVE=1` |
-| Frame callbacks | environment `vSync`/`hSync` | IRQ6/IRQ4 bridge |
+| Frame callback | environment `vSync` | IRQ6 bridge |
 | Game, VDP, input, audio | Shared C++ | The same shared C++ |
 
 `config/shared_sources.json` is the canonical list of shared implementations.
@@ -34,15 +34,16 @@ background, loads tiles from ROM, prepares planes and finally enables display.
 
 During execution:
 
-1. HBlank callbacks fill a bounded block of per-line horizontal scroll values.
-2. VBlank finishes the final block, samples input and advances the active model.
+1. VBlank sets a pending-frame flag and immediately returns from IRQ6.
+2. The target main loop consumes that flag, samples input and advances the model.
 3. One-frame events select sound effects.
-4. The active screen writes planes, sprites or DMA state.
-5. The Boing Ball renderer uses remaining visible time for bounded raster work.
+4. The active screen writes bounded planes, sprites or VBlank DMA state.
+5. The Boing Ball renderer uses visible-line CPU time for bounded raster work.
 
-The PC application forwards environment interrupts to `SampleGame`. The real
-hardware assembly handlers call the same methods, so there is no second game
-loop or renderer.
+The game leaves the VDP HBlank interrupt disabled. The PC application and real
+hardware IRQ6 both schedule the same `SampleGame` frame method, so there is no
+second game loop or renderer. Keeping the long work outside IRQ6 is essential:
+the Boing Ball rasterizer may intentionally run until NTSC line 192.
 
 ## Main components
 
@@ -51,7 +52,7 @@ loop or renderer.
 - `GameSession` owns the player, collectible, enemy, collision rules, score and
   phase. It consumes a plain `ControllerState` and emits one-frame `Events`.
 - `SampleGame` composes input, rules, audio and rendering. It switches between
-  the main game and demo and owns the VBlank/HBlank callbacks.
+  the main game and demo, records VBlank and runs pending frames outside IRQ.
 - `ControllerReader` implements the standard three-button protocol through
   `$A10003/$A10005` and `$A10009/$A1000B`.
 - `VdpUtils` provides target-neutral VDP operations for registers, VRAM, CRAM,
@@ -61,7 +62,8 @@ loop or renderer.
   through its mailbox.
 - `BoingBallDemo` owns the fixed-point simulation and software tile rasterizer.
   It creates only the visible tile rectangle, learns transparent corners and
-  double-buffers a bounded Work RAM surface before VDP DMA.
+  double-buffers a bounded Work RAM surface before VDP DMA. Uploads are capped
+  at 160 tiles (5120 bytes) per NTSC VBlank, so a 128x128 surface spans two.
 
 ## The memory boundary
 

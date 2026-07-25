@@ -51,9 +51,10 @@ target uses `-PC` or `-MD`, such as `Memory-PC.cpp` and `Memory-MD.cpp`.
 - Include only public `MegaDriveEnvironment` headers.
 - Keep `SampleGame`, `VdpUtils`, controllers, gameplay, and audio source
   unchanged between targets.
-- Drive shared behavior through VBlank/HBlank. The PC entry point overrides
-  `vSync()`/`hSync()`; hardware IRQ6/IRQ4 forwards to the same `SampleGame`
-  methods.
+- Drive shared frames from VBlank, but keep the IRQ6 callback short: it only
+  schedules work that the target main loop consumes outside interrupt context.
+  The game keeps HBlank IRQ disabled; the PC `hSync()` override is an unused
+  adapter required by the host interface.
 - Access runtime hardware only through the free functions in
   `sample::memory`. `Memory.hpp` is the single API; `Memory-PC.cpp` binds a host
   backend and `Memory-MD.cpp` accesses the 68000 bus.
@@ -75,8 +76,6 @@ Preserve these Work RAM reservations:
 - `$FF0000-$FF0003`: IRQ bridge pointer;
 - `$FF1000-$FF2FFF`: `BoingBallDemo` dynamic tile/DMA buffer.
 
-HBlank line state belongs to `SampleGame`, not to a fixed Work RAM shim.
-
 The Boing Ball bounce effect streams
 `sound/amiga_assets/boing_pcm.bin` through the Z80 and YM2612 DAC using
 `sound/z80/boing_ball_sfx.s` and `BoingBallFmSfx`. The main game uses
@@ -90,6 +89,10 @@ The Boing Ball bounce effect streams
 - Z80-local YM2612 `$4000`.
 
 Do not call host sound or Z80 APIs from shared audio code.
+
+The Boing Ball rasterizer deliberately uses visible NTSC CPU time up to line
+192. Its inactive-bank upload is capped at 160 tiles (5120 bytes) per VBlank;
+a maximum 128x128, 256-tile surface is uploaded over two VBlanks.
 
 ## Asset pipeline
 

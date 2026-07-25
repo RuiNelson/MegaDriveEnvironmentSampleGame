@@ -113,6 +113,8 @@ class BoingBallDemo final {
     std::uint8_t rasterTileY_ = 0;
     std::uint16_t rasterTileCount_ = 144;
     std::uint16_t rasterNextTile_ = 0;
+    /** First completed surface tile not yet uploaded to the inactive VRAM bank. */
+    std::uint16_t dmaNextTile_ = 0;
     bool fpsNeedsRender_ = true;
     bool shadowNeedsUpload_ = true;
     bool surfaceVisible_ = false;

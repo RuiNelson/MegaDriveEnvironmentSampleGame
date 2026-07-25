@@ -27,8 +27,6 @@ inline constexpr std::uint16_t kWindowPlane = 0xB000;
 /** Plane dimensions selected by VDP register 16, measured in 8x8 cells. */
 inline constexpr int kPlaneWidth = 64;
 inline constexpr int kPlaneHeight = 32;
-/** Visible scanlines covered by each HBlank callback. */
-inline constexpr int kHSyncLineBatch = 16;
 
 /** Writes one VDP register through the memory-mapped control port. */
 void writeRegister(std::uint8_t reg, std::uint8_t value);
@@ -48,12 +46,8 @@ void initialize();
 /** Enables the display after palettes, tiles and planes have been populated. */
 void finishInitialization();
 
-/** Positions the VDP write cursor at the first per-scanline HScroll pair. */
-void beginHorizontalScrollLines(int firstScanline);
-
-/** Appends one Plane A / Plane B pair after beginHorizontalScrollLines(). */
-void appendHorizontalScrollLine(std::uint16_t planeA,
-                                std::uint16_t planeB);
+/** Sets the full-screen horizontal offsets used without HBlank interrupts. */
+void setHorizontalScroll(std::uint16_t planeA, std::uint16_t planeB);
 
 /**
  * Loads all 16 colors of a hardware palette.

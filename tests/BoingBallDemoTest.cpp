@@ -34,8 +34,24 @@ struct RecordingMemory {
                 maximumBufferAddress = address;
             }
         }
-        if (address == sample::vdp::kControlPort && value == 0x0080) {
+        if (address == sample::vdp::kControlPort && (value & 0xFFFCu) == 0x0080u) {
             sawDmaCommand = true;
+            const auto dmaWords = static_cast<std::uint16_t>(
+                dmaLengthLow | (static_cast<std::uint16_t>(dmaLengthHigh) << 8));
+            if (dmaWords > maximumDmaWordCount) {
+                maximumDmaWordCount = dmaWords;
+            }
+        }
+        if (address == sample::vdp::kControlPort &&
+            (value & 0xE000u) == 0x8000u) {
+            const auto reg = static_cast<std::uint8_t>((value >> 8) & 0x1Fu);
+            if (reg == 0x00) {
+                mode1Register = static_cast<std::uint8_t>(value);
+            } else if (reg == 0x13) {
+                dmaLengthLow = static_cast<std::uint8_t>(value);
+            } else if (reg == 0x14) {
+                dmaLengthHigh = static_cast<std::uint8_t>(value);
+            }
         }
     }
     void write32(sample::memory::Address address, std::uint32_t value) {
@@ -48,6 +64,7 @@ struct RecordingMemory {
         minimumBufferAddress = 0xFFFFFFFF;
         maximumBufferAddress = 0;
         sawDmaCommand = false;
+        maximumDmaWordCount = 0;
         for (auto &seen : sawRasterIndex) {
             seen = false;
         }
@@ -61,6 +78,10 @@ struct RecordingMemory {
     sample::memory::Address minimumBufferAddress = 0xFFFFFFFF;
     sample::memory::Address maximumBufferAddress = 0;
     bool sawDmaCommand = false;
+    std::uint8_t dmaLengthLow = 0;
+    std::uint8_t dmaLengthHigh = 0;
+    std::uint8_t mode1Register = 0;
+    std::uint16_t maximumDmaWordCount = 0;
     bool sawRasterIndex[16]{};
 };
 
@@ -96,6 +117,8 @@ sample::memory::Backend makeBackend(T *self) {
 int main() {
     RecordingMemory ntscMemory;
     sample::memory::bind(makeBackend(&ntscMemory));
+    sample::vdp::initialize();
+    assert((ntscMemory.mode1Register & 0x10u) == 0); // HBlank IRQ disabled
     sample::demo::BoingBallDemo demo;
     demo.initialize();
     assert(demo.refreshRate() == 60);
@@ -146,6 +169,7 @@ int main() {
     ntscMemory.resetRecording();
     demo.render();
     assert(ntscMemory.sawDmaCommand);
+    assert(ntscMemory.maximumDmaWordCount == 144 * 16);
     // Fully transparent corner tiles remain zero across rotations and are
     // skipped after the occupancy mask has been learned from the first surface.
     assert(ntscMemory.bufferWordWrites < 144 * 16);
@@ -162,8 +186,29 @@ int main() {
     }
     assert(demo.ballSize() == 8);
 
+    // A maximum-size 8192-byte surface is split across VBlanks. No individual
+    // DMA may exceed the 5120-byte NTSC H40 budget reserved by the demo.
+    demo.activate();
+    for (int frame = 0; frame < 32; ++frame) {
+        (void)demo.update(true, false);
+    }
+    demo.render(); // finish the frozen 96-pixel surface
+    demo.render(); // upload it and rasterize the requested 128-pixel surface
+    ntscMemory.resetRecording();
+    demo.render();
+    assert(ntscMemory.sawDmaCommand);
+    assert(ntscMemory.maximumDmaWordCount == 160 * 16);
+    ntscMemory.resetRecording();
+    demo.render();
+    assert(ntscMemory.sawDmaCommand);
+    assert(ntscMemory.maximumDmaWordCount == 96 * 16);
+
     // The 8-pixel display size uses exactly one tile. The first render finishes
     // the already-frozen 96-pixel surface; the second starts the new size.
+    demo.activate();
+    for (int frame = 0; frame < 120; ++frame) {
+        (void)demo.update(false, true);
+    }
     ntscMemory.resetRecording();
     demo.render();
     ntscMemory.resetRecording();

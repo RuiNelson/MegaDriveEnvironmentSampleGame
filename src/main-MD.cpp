@@ -10,13 +10,12 @@
  * 1. `megadrive/header.s` owns the vector table, Sega cartridge header, TMSS
  *    unlock, exception/IRQ stubs and the `wait_for_interrupt` STOP helper.
  * 2. After reset, the assembler jumps to `game_main()` defined here.
- * 3. IRQ6 (VBlank) and IRQ4 (HBlank) assembly handlers call `game_vsync()` and
- *    `game_hsync()`, which forward into the same `SampleGame` methods used by
- *    the PC build (`main-PC.cpp`).
+ * 3. IRQ6 (VBlank) calls `game_vsync()` to schedule a shared frame. The VDP's
+ *    HBlank interrupt remains disabled for the game.
  *
  * There is deliberately no second game loop or renderer: shared gameplay,
- * input, audio and VDP code live in `sample::SampleGame` and are driven only
- * through VBlank/HBlank callbacks on both targets.
+ * input, audio and VDP code live in `sample::SampleGame`; the short VBlank
+ * callback schedules work that the main loop performs outside interrupt context.
  *
  * ## Freestanding constraints
  *
@@ -32,9 +31,6 @@
  * | `$FF0000-$FF0003`| Active `SampleGame*` for the IRQ bridge              |
  * | `$FF1000-$FF2FFF`| `BoingBallDemo` DMA tile buffer (not touched here)   |
  * | stack from `$FFFFFC` downwards | `SampleGame` + locals for `game_main` lifetime |
- *
- * The HBlank line counter lives inside `SampleGame` (not Work RAM): the VDP
- * HINT does not report a scanline, so the game advances 0, 16, 32, … itself.
  *
  * The game object itself remains on the supervisor stack for the entire
  * lifetime of `game_main`. The IRQ bridge cannot take a C++ reference across
@@ -111,7 +107,7 @@ sample::SampleGame &activeGame() {
  * Implemented in `megadrive/header.s` as `stop #0x2000` (supervisor mode, IRQ
  * mask clear) followed by `rts`. Control returns after the IRQ handler's `rte`
  * resumes the stopped instruction stream. The C++ main loop calls this instead
- * of busy-waiting so the 68000 idles between HBlank/VBlank work.
+ * of busy-waiting so the 68000 idles between frames.
  */
 extern "C" void wait_for_interrupt();
 
@@ -127,16 +123,6 @@ extern "C" void game_vsync() {
 }
 
 /**
- * @brief HBlank (IRQ4) C entry point called from `irq_level_4` in header.s.
- *
- * Forwards into `SampleGame::onHSync()`. The hardware interrupt does not carry
- * a scanline index; the game tracks the next H-scroll block itself.
- */
-extern "C" void game_hsync() {
-    activeGame().onHSync();
-}
-
-/**
  * @brief Cartridge C++ entry point; never returns.
  *
  * Called from `reset_entry` in `megadrive/header.s` after the stack pointer is
@@ -147,7 +133,7 @@ extern "C" void game_hsync() {
  *    direct via sample::memory free functions; no Memory object is needed).
  * 2. Publish the game pointer for IRQ handlers.
  * 3. Run one-shot hardware/game initialization (controllers, audio, VDP, scene).
- * 4. Sleep forever via `wait_for_interrupt()`; all further work is IRQ-driven.
+ * 4. Sleep until VBlank, then perform the pending frame after IRQ6 returns.
  *
  * Marked `[[noreturn]]` because the infinite STOP loop is the intended
  * lifetime of a cartridge program. A trailing branch in the assembler also
@@ -160,8 +146,10 @@ extern "C" [[noreturn]] void game_main() {
     game.initialize();
 
     for (;;) {
-        // STOP enables interrupts and sleeps until the next HBlank/VBlank IRQ;
-        // the assembly handlers then call the shared SampleGame callbacks.
+        // IRQ6 only sets the pending flag. Returning here before running the
+        // frame keeps the level-6 handler short while visible-line raster work
+        // proceeds with normal interrupt state restored.
         wait_for_interrupt();
+        (void)game.runPendingFrame();
     }
 }
