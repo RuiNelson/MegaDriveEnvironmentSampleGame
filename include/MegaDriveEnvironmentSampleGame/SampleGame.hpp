@@ -45,6 +45,7 @@ class SampleGame final {
 
   private:
     enum class Screen : std::uint8_t {
+        Menu,
         Game,
         BoingBall,
     };
@@ -60,6 +61,12 @@ class SampleGame final {
 
     /** Writes the current model state to Plane A and the sprite table. */
     void render();
+
+    /** Sets up the menu palettes, clears planes and writes menu text. */
+    void activateMenu();
+
+    /** Draws the menu title, game list and selection cursor. */
+    void renderMenu();
 
     /** Draws the deliberately unavoidable EU cookie-consent notice. */
     void renderCookieBanner();
@@ -80,8 +87,6 @@ class SampleGame final {
     audio::BoingBallFmSfx boingBallFmSfx_;
     /** Shared fixed-point and software-rendered Start-screen demo. */
     demo::BoingBallDemo boingBallDemo_;
-    /** Moves the Plane B wave vertically without scrolling Plane A. */
-    std::uint8_t backgroundWavePhase_ = 0;
     /**
      * First scanline of the next H-scroll block written by onHSync().
      * Reset to 0 on each VBlank; advanced by kHSyncLineBatch per HBlank.
@@ -94,9 +99,13 @@ class SampleGame final {
     /** Requests one cleanup pass when gameplay replaces the notice. */
     bool cookieBannerNeedsClear_ = false;
     /** Current renderer selected by an edge-triggered Start press. */
-    Screen screen_ = Screen::Game;
-    /** Converts the level-sensitive controller bit into screen-toggle edges. */
+    Screen screen_ = Screen::Menu;
+    /** Converts the level-sensitive Start bit into screen-toggle edges. */
     bool startWasDown_ = false;
+    /** Converts the level-sensitive A bit into menu-select edges. */
+    bool aWasDown_ = false;
+    /** Which game the cursor points to in the menu (0 = Gem, 1 = Boing Ball). */
+    std::uint8_t menuSelection_ = 0;
 };
 
 } // namespace sample

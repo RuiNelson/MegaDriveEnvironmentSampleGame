@@ -66,10 +66,12 @@ void SampleGame::onVSync() {
     nextHScrollLine_ = 0;
     update();
     render();
-    backgroundWavePhase_ = static_cast<std::uint8_t>((backgroundWavePhase_ + 1u) & 0x3Fu);
 }
 
 void SampleGame::onHSync() {
+    if (screen_ == Screen::Menu) {
+        return;
+    }
     // Skip once the final visible block is reserved for onVSync() (lines 208-223).
     if (nextHScrollLine_ >= kVisibleScanlineCount - vdp::kHSyncLineBatch) {
         return;
@@ -85,26 +87,8 @@ void SampleGame::onHSync() {
 void SampleGame::writeBackgroundWaveBlock(int firstScanline) {
     vdp::beginHorizontalScrollLines(firstScanline);
     const int endScanline = firstScanline + vdp::kHSyncLineBatch;
-    if (screen_ == Screen::BoingBall) {
-        for (int currentScanline = firstScanline; currentScanline < endScanline; ++currentScanline) {
-            vdp::appendHorizontalScrollLine(0, 0);
-        }
-        return;
-    }
-
     for (int currentScanline = firstScanline; currentScanline < endScanline; ++currentScanline) {
-        const auto step = static_cast<unsigned>((currentScanline + backgroundWavePhase_) & 0x3F);
-        int offset;
-        if (step < 16u) {
-            offset = static_cast<int>(step);
-        } else if (step < 32u) {
-            offset = static_cast<int>(32u - step);
-        } else if (step < 48u) {
-            offset = -static_cast<int>(step - 32u);
-        } else {
-            offset = -static_cast<int>(64u - step);
-        }
-        vdp::appendHorizontalScrollLine(0, static_cast<std::uint16_t>(offset));
+        vdp::appendHorizontalScrollLine(0, 0);
     }
 }
 
@@ -119,7 +103,7 @@ void SampleGame::initializeGraphics() {
     vdp::loadTilesFromRom(tileRom + kGemRomTile * 32, kGemTile, 1);
     vdp::loadTilesFromRom(tileRom + kFloorRomTile * 32, kFloorTile, 1);
 
-    activateGameScreen();
+    activateMenu();
     vdp::finishInitialization();
 }
 
@@ -136,7 +120,24 @@ void SampleGame::activateGameScreen() {
     vdp::fillPlaneArea(vdp::kPlaneB, 0, 0, 40, 28,
                        vdp::tileDescriptor(kFloorTile, 3));
     vdp::writeText(vdp::kPlaneA, 2, 1, "MEGADRIVE ENVIRONMENT SAMPLE", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 2, 26, "D-PAD MOVE   A RESET   START DEMO", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 2, 26, "D-PAD MOVE   A RESET   START MENU", kFontTile);
+}
+
+void SampleGame::activateMenu() {
+    vdp::writeRegister(0x07, 0x00);
+    vdp::writeRegister(0x11, 0x00);
+    vdp::writeRegister(0x12, 0x00);
+    vdp::loadPalette(0, kTextPalette);
+    vdp::loadPalette(1, kPlayerPalette);
+    vdp::loadPalette(2, kGemPalette);
+    vdp::loadPalette(3, kFloorPalette);
+
+    vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    vdp::fillPlaneArea(vdp::kPlaneB, 0, 0, 40, 28, vdp::tileDescriptor(0));
+    // Hide all sprites while on the menu.
+    for (int i = 0; i < 3; ++i) {
+        vdp::writeSprite(i, -32, -32, 1, 1, 0, 0, 0);
+    }
 }
 
 void SampleGame::update() {
@@ -145,6 +146,8 @@ void SampleGame::update() {
     auto controls = player1Controller_.read();
     const bool startPressed = controls.start && !startWasDown_;
     startWasDown_ = controls.start;
+    const bool aPressed = controls.a && !aWasDown_;
+    aWasDown_ = controls.a;
 
     if (!cookieConsentAccepted_) {
         // In keeping with the joke, A and Start are presented as different
@@ -157,6 +160,15 @@ void SampleGame::update() {
         return;
     }
 
+    if (screen_ == Screen::Menu) {
+        if (controls.up && menuSelection_ > 0) {
+            --menuSelection_;
+        }
+        if (controls.down && menuSelection_ < 1) {
+            ++menuSelection_;
+        }
+    }
+
     // Do not leak the acceptance input into GameSession, where A/Start is the
     // reset command. Resume only after the player releases the chosen button.
     if (waitingForConsentButtonRelease_) {
@@ -166,10 +178,23 @@ void SampleGame::update() {
         waitingForConsentButtonRelease_ = false;
     }
 
+    if (screen_ == Screen::Menu) {
+        if (aPressed) {
+            if (menuSelection_ == 0) {
+                screen_ = Screen::Game;
+                activateGameScreen();
+            } else {
+                screen_ = Screen::BoingBall;
+                boingBallDemo_.activate();
+            }
+        }
+        return;
+    }
+
     if (screen_ == Screen::BoingBall) {
         if (startPressed) {
-            screen_ = Screen::Game;
-            activateGameScreen();
+            screen_ = Screen::Menu;
+            activateMenu();
             return;
         }
         const auto events = boingBallDemo_.update(controls.up, controls.down);
@@ -182,8 +207,8 @@ void SampleGame::update() {
     }
 
     if (startPressed) {
-        screen_ = Screen::BoingBall;
-        boingBallDemo_.activate();
+        screen_ = Screen::Menu;
+        activateMenu();
         return;
     }
 
@@ -201,11 +226,6 @@ void SampleGame::update() {
 }
 
 void SampleGame::render() {
-    if (screen_ == Screen::BoingBall) {
-        boingBallDemo_.render();
-        return;
-    }
-
     if (!cookieConsentAccepted_) {
         renderCookieBanner();
         return;
@@ -214,6 +234,16 @@ void SampleGame::render() {
     if (cookieBannerNeedsClear_) {
         clearCookieBanner();
         cookieBannerNeedsClear_ = false;
+    }
+
+    if (screen_ == Screen::Menu) {
+        renderMenu();
+        return;
+    }
+
+    if (screen_ == Screen::BoingBall) {
+        boingBallDemo_.render();
+        return;
     }
 
     // Avoid snprintf, division and initialized local arrays (which can make a
@@ -249,6 +279,19 @@ void SampleGame::render() {
     vdp::writeSprite(0, player.x(), player.y(), 2, 2, kPlayerTile, 1, 1);
     vdp::writeSprite(1, gem.x(), gem.y(), 1, 1, kGemTile, 2, 2);
     vdp::writeSprite(2, enemy.x(), enemy.y(), 2, 2, kEnemyTile, 3, 0);
+}
+
+void SampleGame::renderMenu() {
+    vdp::writeText(vdp::kPlaneA, 12, 8, "SELECT A GAME", kFontTile);
+
+    const char *gemCursor = (menuSelection_ == 0) ? ">" : " ";
+    const char *boingCursor = (menuSelection_ == 1) ? ">" : " ";
+    vdp::writeText(vdp::kPlaneA, 11, 12, gemCursor, kFontTile);
+    vdp::writeText(vdp::kPlaneA, 13, 12, "GEM COLLECTING", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 11, 14, boingCursor, kFontTile);
+    vdp::writeText(vdp::kPlaneA, 13, 14, "BOING BALL", kFontTile);
+
+    vdp::writeText(vdp::kPlaneA, 7, 20, "UP/DOWN SELECT   A START", kFontTile);
 }
 
 void SampleGame::renderCookieBanner() {
