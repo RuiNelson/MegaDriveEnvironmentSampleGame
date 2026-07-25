@@ -47,12 +47,6 @@ Runtime code copies only the needed spans from ROM to VRAM. New authored tiles
 can be added to `CUSTOM_TILE_ROWS`; larger art pipelines should produce a blob
 instead of turning large binary assets into C++ arrays.
 
-The menu ocean is twenty authored 8x8 tiles: distant water, two white-foam
-crest families and calm middle/foreground water. Their layered cyan, blue and
-white shapes use the local `sea.png` only as a visual reference; the PNG is not
-converted or packed into the ROM. Plane B repeats those tiles across exactly
-the lower 14 rows (112 pixels).
-
 ## Z80 and PCM sound
 
 `sound/z80/boing_ball_sfx.s` is assembled by

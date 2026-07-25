@@ -17,8 +17,7 @@ persistent state, scratch buffers and any allocator share that region.
 - stack starts at `$FFFFFC` and grows downwards.
 
 `SampleGame` keeps only a pending-frame flag for the IRQ6/main-loop handoff.
-Its menu raster state is one byte. HBlank IRQ is active only for the menu's
-upper 112 pixels and is disabled before entering either game.
+The game does not enable the VDP HBlank interrupt.
 
 Future layouts must preserve these ranges or relocate them deliberately in all
 code, tests and documentation. There is no guard page between a descending

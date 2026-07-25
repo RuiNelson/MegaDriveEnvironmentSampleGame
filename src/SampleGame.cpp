@@ -18,27 +18,19 @@ constexpr std::uint16_t kFontTile = 1;
 constexpr std::uint16_t kPlayerTile = 96;
 constexpr std::uint16_t kGemTile = 100;
 constexpr std::uint16_t kFloorTile = 101;
-constexpr std::uint16_t kMenuOceanFirstTile = 102;
 constexpr std::uint16_t kEnemyTile = kPlayerTile;
 
 constexpr std::uint16_t kFontTileCount = 95;
 constexpr std::uint16_t kPlayerRomTile = 95;
 constexpr std::uint16_t kGemRomTile = 99;
 constexpr std::uint16_t kFloorRomTile = 100;
-constexpr std::uint16_t kMenuOceanFirstRomTile = 101;
-constexpr std::uint16_t kMenuOceanTileCount = 20;
 
 constexpr int kCookieBannerFirstRow = 7;
 constexpr int kCookieBannerLastRow = 20;
-constexpr int kMenuOceanFirstRow = 14;
-constexpr int kMenuOceanRowCount = 14;
 constexpr const char *kBlankScreenRow = "                                        ";
 // CRAM words use the Mega Drive's 0000BBB0GGG0RRR0 channel layout.
 constexpr std::uint16_t kTextPalette[16]{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-};
-constexpr std::uint16_t kMenuTextPalette[16]{
-    0x0000, 0x00EE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 constexpr std::uint16_t kPlayerPalette[16]{
     0x0000, 0x0008, 0x00EE, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -48,16 +40,6 @@ constexpr std::uint16_t kGemPalette[16]{
 };
 constexpr std::uint16_t kFloorPalette[16]{
     0x0000, 0x0222, 0x000E, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-};
-constexpr std::uint16_t kMenuOceanPalette[16]{
-    0x0000, 0x0600, 0x0800, 0x0A20, 0x0C40, 0x0E60, 0x0E80, 0x0EA0,
-    0x0EEE, 0x00EE, 0, 0, 0, 0, 0, 0,
-};
-// One backdrop color per eight-pixel sky band. Fourteen bands cover exactly
-// the upper 112 pixels; Plane B becomes fully opaque ocean at row 14.
-constexpr std::uint16_t kMenuSkyGradient[kMenuOceanFirstRow]{
-    0x0E86, 0x0E86, 0x0E88, 0x0E88, 0x0EA8, 0x0EA8, 0x0EAA,
-    0x0EAA, 0x0ECA, 0x0ECA, 0x0ECC, 0x0ECC, 0x0EEE, 0x0EEE,
 };
 
 } // namespace
@@ -74,27 +56,7 @@ void SampleGame::initialize() {
 }
 
 void SampleGame::onVSync() {
-    if (screen_ == Screen::Menu && cookieConsentAccepted_) {
-        nextMenuSkyBand_ = 1;
-        vdp::writePaletteColor(0, 0, kMenuSkyGradient[0]);
-        vdp::writeRegister(0x0A, 7);
-        vdp::writeRegister(0x00, 0x14);
-    }
     framePending_ = true;
-}
-
-void SampleGame::onHSync() {
-    if (screen_ != Screen::Menu || !cookieConsentAccepted_ ||
-        nextMenuSkyBand_ >= kMenuOceanFirstRow) {
-        return;
-    }
-    vdp::writePaletteColor(0, 0, kMenuSkyGradient[nextMenuSkyBand_]);
-    ++nextMenuSkyBand_;
-    if (nextMenuSkyBand_ == kMenuOceanFirstRow) {
-        // No more palette work is needed once the beam reaches the opaque
-        // lower-half ocean. VBlank re-enables HINT for the next sky.
-        vdp::writeRegister(0x00, 0x04);
-    }
 }
 
 bool SampleGame::runPendingFrame() {
@@ -119,15 +81,12 @@ void SampleGame::initializeGraphics() {
     vdp::loadTilesFromRom(tileRom + kPlayerRomTile * 32, kPlayerTile, 4);
     vdp::loadTilesFromRom(tileRom + kGemRomTile * 32, kGemTile, 1);
     vdp::loadTilesFromRom(tileRom + kFloorRomTile * 32, kFloorTile, 1);
-    vdp::loadTilesFromRom(tileRom + kMenuOceanFirstRomTile * 32,
-                          kMenuOceanFirstTile, kMenuOceanTileCount);
 
     activateMenu();
     vdp::finishInitialization();
 }
 
 void SampleGame::activateGameScreen() {
-    deactivateMenuRaster();
     vdp::writeRegister(0x07, 0x00);
     vdp::writeRegister(0x11, 0x00);
     vdp::writeRegister(0x12, 0x00); // disable the demo's bottom Window plane
@@ -144,61 +103,19 @@ void SampleGame::activateGameScreen() {
 }
 
 void SampleGame::activateMenu() {
-    deactivateMenuRaster();
     vdp::writeRegister(0x07, 0x00);
-    // The Window plane covers the screen and acts as the frontmost text layer.
-    // Its transparent pixels reveal Plane B's sky/ocean composition.
-    vdp::writeRegister(0x11, 20); // left of cell 40: full 320-pixel width
+    vdp::writeRegister(0x11, 0x00);
     vdp::writeRegister(0x12, 0x00);
     vdp::loadPalette(0, kTextPalette);
-    vdp::loadPalette(1, kMenuTextPalette);
-    vdp::loadPalette(2, kMenuOceanPalette);
+    vdp::loadPalette(1, kPlayerPalette);
+    vdp::loadPalette(2, kGemPalette);
     vdp::loadPalette(3, kFloorPalette);
 
     vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
     vdp::fillPlaneArea(vdp::kPlaneB, 0, 0, 40, 28, vdp::tileDescriptor(0));
-    vdp::fillPlaneArea(vdp::kWindowPlane, 0, 0, 40, 28, vdp::tileDescriptor(0));
-    renderMenuOcean();
-    vdp::setHorizontalScroll(0, 0);
-    vdp::writePaletteColor(0, 0, kMenuSkyGradient[0]);
     // Hide all sprites while on the menu.
     for (int i = 0; i < 3; ++i) {
         vdp::writeSprite(i, -32, -32, 1, 1, 0, 0, 0);
-    }
-}
-
-void SampleGame::deactivateMenuRaster() {
-    vdp::writeRegister(0x00, 0x04); // HBlank IRQ disabled
-    nextMenuSkyBand_ = 1;
-}
-
-void SampleGame::activateMenuRaster() {
-    nextMenuSkyBand_ = 1;
-    vdp::writePaletteColor(0, 0, kMenuSkyGradient[0]);
-    vdp::writeRegister(0x0A, 7);    // one HBlank IRQ per eight scanlines
-    vdp::writeRegister(0x00, 0x14); // enable HBlank IRQ only for this menu
-}
-
-void SampleGame::renderMenuOcean() {
-    for (int row = 0; row < kMenuOceanRowCount; ++row) {
-        int tileGroup = 0; // distant calm water
-        if (row == 3 || row == 7) {
-            tileGroup = 1; // middle-distance white crest
-        } else if (row >= 4 && row <= 6) {
-            tileGroup = 3; // calm middle water
-        } else if (row == 11) {
-            tileGroup = 2; // large foreground white crest
-        } else if (row >= 8) {
-            tileGroup = 4; // deep foreground water
-        }
-        for (int column = 0; column < 40; ++column) {
-            const auto variant = static_cast<std::uint16_t>((column + row) & 3);
-            const auto tile = static_cast<std::uint16_t>(
-                kMenuOceanFirstTile + tileGroup * 4 + variant);
-            vdp::writePlaneTile(
-                vdp::kPlaneB, column, kMenuOceanFirstRow + row,
-                vdp::tileDescriptor(tile, 2));
-        }
     }
 }
 
@@ -247,7 +164,6 @@ void SampleGame::update() {
                 activateGameScreen();
             } else {
                 screen_ = Screen::BoingBall;
-                deactivateMenuRaster();
                 boingBallDemo_.activate();
             }
         }
@@ -345,41 +261,33 @@ void SampleGame::render() {
 }
 
 void SampleGame::renderMenu() {
-    constexpr std::uint8_t kMenuTextPaletteIndex = 1;
-    vdp::writeText(vdp::kWindowPlane, 12, 8, "SELECT A GAME", kFontTile,
-                   kMenuTextPaletteIndex);
+    vdp::writeText(vdp::kPlaneA, 12, 8, "SELECT A GAME", kFontTile);
 
     const char *gemCursor = (menuSelection_ == 0) ? ">" : " ";
     const char *boingCursor = (menuSelection_ == 1) ? ">" : " ";
-    vdp::writeText(vdp::kWindowPlane, 11, 12, gemCursor, kFontTile,
-                   kMenuTextPaletteIndex);
-    vdp::writeText(vdp::kWindowPlane, 13, 12, "GEM COLLECTING", kFontTile,
-                   kMenuTextPaletteIndex);
-    vdp::writeText(vdp::kWindowPlane, 11, 14, boingCursor, kFontTile,
-                   kMenuTextPaletteIndex);
-    vdp::writeText(vdp::kWindowPlane, 13, 14, "BOING BALL", kFontTile,
-                   kMenuTextPaletteIndex);
+    vdp::writeText(vdp::kPlaneA, 11, 12, gemCursor, kFontTile);
+    vdp::writeText(vdp::kPlaneA, 13, 12, "GEM COLLECTING", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 11, 14, boingCursor, kFontTile);
+    vdp::writeText(vdp::kPlaneA, 13, 14, "BOING BALL", kFontTile);
 
-    vdp::writeText(vdp::kWindowPlane, 7, 20, "UP/DOWN SELECT   A START",
-                   kFontTile, kMenuTextPaletteIndex);
-    activateMenuRaster();
+    vdp::writeText(vdp::kPlaneA, 7, 20, "UP/DOWN SELECT   A START", kFontTile);
 }
 
 void SampleGame::renderCookieBanner() {
-    vdp::writeText(vdp::kWindowPlane, 1, 7, "+------------------------------------+", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 8, "|        COOKIE CONSENT              |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 9, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 10, "| THIS GAME WAS MADE IN THE          |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 11, "| EUROPEAN UNION.                    |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 12, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 13, "| WE USE ESSENTIAL COOKIES TO        |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 14, "| REMEMBER YOUR HIGH SCORE.          |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 15, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 16, "| [A] ACCEPT ALL                     |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 17, "| [START] ALSO ACCEPT ALL            |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 18, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 19, "| *YOUR CHOICE IS VERY IMPORTANT     |", kFontTile);
-    vdp::writeText(vdp::kWindowPlane, 1, 20, "+------------------------------------+", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 7, "+------------------------------------+", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 8, "|        COOKIE CONSENT              |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 9, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 10, "| THIS GAME WAS MADE IN THE          |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 11, "| EUROPEAN UNION.                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 12, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 13, "| WE USE ESSENTIAL COOKIES TO        |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 14, "| REMEMBER YOUR HIGH SCORE.          |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 15, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 16, "| [A] ACCEPT ALL                     |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 17, "| [START] ALSO ACCEPT ALL            |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 18, "|                                    |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 19, "| *YOUR CHOICE IS VERY IMPORTANT     |", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 20, "+------------------------------------+", kFontTile);
 
     // An empty sprite list keeps the world hidden while consent blocks play.
     vdp::writeSprite(0, -32, -32, 1, 1, 0, 0, 0);
@@ -387,7 +295,7 @@ void SampleGame::renderCookieBanner() {
 
 void SampleGame::clearCookieBanner() {
     for (int row = kCookieBannerFirstRow; row <= kCookieBannerLastRow; ++row) {
-        vdp::writeText(vdp::kWindowPlane, 0, row, kBlankScreenRow, kFontTile);
+        vdp::writeText(vdp::kPlaneA, 0, row, kBlankScreenRow, kFontTile);
     }
 }
 

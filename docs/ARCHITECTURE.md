@@ -38,16 +38,12 @@ During execution:
 2. The target main loop consumes that flag, samples input and advances the model.
 3. One-frame events select sound effects.
 4. The active screen writes bounded planes, sprites or VBlank DMA state.
-5. The selection menu uses short HBlank callbacks for its upper-half sky;
-   either game disables HINT before taking ownership of the VDP.
-6. The Boing Ball renderer uses visible-line CPU time for bounded raster work.
+5. The Boing Ball renderer uses visible-line CPU time for bounded raster work.
 
-The PC application and real hardware IRQ6 both schedule the same `SampleGame`
-frame method, so there is no second game loop or renderer. IRQ4 is active only
-for the menu sky: every eight lines it advances the backdrop from light blue
-to white, then disables itself at the 112-pixel ocean horizon. Keeping long
-work outside IRQ6 is essential: the Boing Ball rasterizer may intentionally
-run until NTSC line 192.
+The game leaves the VDP HBlank interrupt disabled. The PC application and real
+hardware IRQ6 both schedule the same `SampleGame` frame method, so there is no
+second game loop or renderer. Keeping the long work outside IRQ6 is essential:
+the Boing Ball rasterizer may intentionally run until NTSC line 192.
 
 ## Main components
 
@@ -56,8 +52,7 @@ run until NTSC line 192.
 - `GameSession` owns the player, collectible, enemy, collision rules, score and
   phase. It consumes a plain `ControllerState` and emits one-frame `Events`.
 - `SampleGame` composes input, rules, audio and rendering. It switches between
-  the front-layer Window menu, main game and demo, records VBlank, owns the
-  menu-only sky IRQ, and runs pending frames outside IRQ.
+  the main game and demo, records VBlank and runs pending frames outside IRQ.
 - `ControllerReader` implements the standard three-button protocol through
   `$A10003/$A10005` and `$A10009/$A1000B`.
 - `VdpUtils` provides target-neutral VDP operations for registers, VRAM, CRAM,
@@ -69,9 +64,6 @@ run until NTSC line 192.
   It creates only the visible tile rectangle, learns transparent corners and
   double-buffers a bounded Work RAM surface before VDP DMA. Uploads are capped
   at 160 tiles (5120 bytes) per NTSC VBlank, so a 128x128 surface spans two.
-- The menu reserves Plane B for scenery: transparent cells expose the
-  HBlank-colored sky over rows 0..13, while authored ocean tiles cover rows
-  14..27. Window covers the screen as the priority text layer.
 
 ## The memory boundary
 

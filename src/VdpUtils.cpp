@@ -79,16 +79,6 @@ void setHorizontalScroll(std::uint16_t planeA, std::uint16_t planeB) {
     memory::write16(kDataPort, planeB);
 }
 
-void writePaletteColor(std::uint8_t palette,
-                       std::uint8_t color,
-                       std::uint16_t value) {
-    const auto address = static_cast<std::uint16_t>(
-        static_cast<std::uint16_t>(palette) * 32u +
-        static_cast<std::uint16_t>(color) * 2u);
-    setCramWrite(address);
-    memory::write16(kDataPort, value);
-}
-
 void loadPalette(std::uint8_t palette, const std::uint16_t (&colors)[16]) {
     setCramWrite(static_cast<std::uint16_t>(palette * 32));
     for (const auto color : colors) {

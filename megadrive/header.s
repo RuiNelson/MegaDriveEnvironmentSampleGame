@@ -27,7 +27,7 @@ rom_vectors:
     .long irq_level_1
     .long irq_level_2
     .long irq_level_3
-    .long irq_level_4          | HBlank autovector (enabled only in the menu)
+    .long irq_level_4          | HBlank autovector (game leaves HINT disabled)
     .long irq_level_5
     .long irq_level_6          | VBlank autovector
     .long irq_level_7
@@ -101,15 +101,9 @@ irq_spurious:
 irq_level_1:
 irq_level_2:
 irq_level_3:
+irq_level_4:
 irq_level_5:
 irq_level_7:
-    rte
-
-irq_level_4:
-    movem.l %d0-%d1/%a0-%a1, -(%sp)
-    move.w  0x00C00004, %d0
-    jsr     game_hsync
-    movem.l (%sp)+, %d0-%d1/%a0-%a1
     rte
 
 irq_level_6:

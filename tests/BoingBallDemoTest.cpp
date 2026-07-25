@@ -34,26 +34,7 @@ struct RecordingMemory {
                 maximumBufferAddress = address;
             }
         }
-        if (address == sample::vdp::kDataPort) {
-            if (vramWriteActive) {
-                const auto floorStart = static_cast<std::uint16_t>(
-                    sample::vdp::kWindowPlane +
-                    20 * sample::vdp::kPlaneWidth * 2);
-                const auto floorEnd = static_cast<std::uint16_t>(
-                    sample::vdp::kWindowPlane +
-                    28 * sample::vdp::kPlaneWidth * 2);
-                if (vramAddress >= floorStart && vramAddress < floorEnd &&
-                    value != 0) {
-                    ++floorNameTableWrites;
-                }
-                vramAddress = static_cast<std::uint16_t>(vramAddress + 2);
-            }
-            return;
-        }
-        if (address != sample::vdp::kControlPort) {
-            return;
-        }
-        if ((value & 0xFFFCu) == 0x0080u) {
+        if (address == sample::vdp::kControlPort && (value & 0xFFFCu) == 0x0080u) {
             sawDmaCommand = true;
             const auto dmaWords = static_cast<std::uint16_t>(
                 dmaLengthLow | (static_cast<std::uint16_t>(dmaLengthHigh) << 8));
@@ -61,33 +42,17 @@ struct RecordingMemory {
                 maximumDmaWordCount = dmaWords;
             }
         }
-        if ((value & 0xE000u) == 0x8000u) {
+        if (address == sample::vdp::kControlPort &&
+            (value & 0xE000u) == 0x8000u) {
             const auto reg = static_cast<std::uint8_t>((value >> 8) & 0x1Fu);
             if (reg == 0x00) {
                 mode1Register = static_cast<std::uint8_t>(value);
-            } else if (reg == 0x01) {
-                mode2Register = static_cast<std::uint8_t>(value);
-                sawDisplayDisabled |= mode2Register == 0x34;
             } else if (reg == 0x13) {
                 dmaLengthLow = static_cast<std::uint8_t>(value);
             } else if (reg == 0x14) {
                 dmaLengthHigh = static_cast<std::uint8_t>(value);
             }
-            commandPending = false;
-            vramWriteActive = false;
-            return;
         }
-        if (!commandPending) {
-            commandWord1 = value;
-            commandPending = true;
-            return;
-        }
-        const auto code = static_cast<std::uint8_t>(
-            ((commandWord1 >> 14) & 0x03u) | ((value >> 2) & 0x3Cu));
-        vramAddress = static_cast<std::uint16_t>(
-            (commandWord1 & 0x3FFFu) | ((value & 0x03u) << 14));
-        vramWriteActive = code == 0x01;
-        commandPending = false;
     }
     void write32(sample::memory::Address address, std::uint32_t value) {
         write16(address, static_cast<std::uint16_t>(value >> 16));
@@ -100,9 +65,6 @@ struct RecordingMemory {
         maximumBufferAddress = 0;
         sawDmaCommand = false;
         maximumDmaWordCount = 0;
-        floorNameTableWrites = 0;
-        commandPending = false;
-        vramWriteActive = false;
         for (auto &seen : sawRasterIndex) {
             seen = false;
         }
@@ -119,15 +81,8 @@ struct RecordingMemory {
     std::uint8_t dmaLengthLow = 0;
     std::uint8_t dmaLengthHigh = 0;
     std::uint8_t mode1Register = 0;
-    std::uint8_t mode2Register = 0;
-    bool sawDisplayDisabled = false;
     std::uint16_t maximumDmaWordCount = 0;
-    std::size_t floorNameTableWrites = 0;
     bool sawRasterIndex[16]{};
-    bool commandPending = false;
-    bool vramWriteActive = false;
-    std::uint16_t commandWord1 = 0;
-    std::uint16_t vramAddress = 0;
 };
 
 
@@ -172,15 +127,7 @@ int main() {
     // software before being uploaded; no pre-authored graphics are sampled.
     assert(ntscMemory.bufferWordWrites == (9 + 320) * 16);
 
-    // Reproduce the menu owning and clearing the Window name table. Activation
-    // must rebuild all 320 cells of the lower perspective floor.
-    sample::vdp::fillPlaneArea(sample::vdp::kWindowPlane, 0, 0, 40, 28,
-                               sample::vdp::tileDescriptor(0));
-    ntscMemory.resetRecording();
     demo.activate();
-    assert(ntscMemory.floorNameTableWrites == 8u * 40u);
-    assert(ntscMemory.sawDisplayDisabled);
-    assert(ntscMemory.mode2Register == 0x74);
     assert(demo.ballX() == 8);
     assert(demo.ballY() == 80);
     assert(demo.ballSize() == 96);

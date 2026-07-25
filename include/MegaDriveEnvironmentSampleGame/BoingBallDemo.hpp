@@ -74,14 +74,11 @@ class BoingBallDemo final {
     /** Creates the scaled 128x8 dithered ellipse used by four shadow sprites. */
     void uploadShadowTiles();
 
-    /** Creates and uploads the software-generated wall/floor patterns. */
+    /** Creates software-generated wall/floor patterns and the floor name table. */
     void uploadBackgroundTiles();
 
     /** Maps the software-generated repeating wall grid to visible Plane B. */
     void mapWallGrid();
-
-    /** Maps the software-generated perspective floor to the lower Window. */
-    void mapFloorGrid();
 
     /** Replaces the numeric part of the static FPS label. */
     void renderFps();

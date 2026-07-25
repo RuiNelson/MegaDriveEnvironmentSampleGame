@@ -194,7 +194,9 @@ void TestControllers::vSync() {
 }
 
 void TestControllers::waitVBlank() {
-    vdp().discardPendingInterrupts();
+    VDP::Interrupt discard;
+    while (vdp().popInterrupt(discard)) {
+    }
     frameReady_     = false;
     const Uint64 t0 = SDL_GetTicks();
     while (!frameReady_ && !shouldQuit() && (SDL_GetTicks() - t0) < 200) {
