@@ -47,7 +47,7 @@ void setCramWrite(std::uint16_t address) {
 void initialize() {
     // Configure both targets exactly like the physical VDP. The display stays
     // disabled while tables are populated. VBlank schedules the shared game
-    // once initialization has completed; game HBlank interrupts stay disabled.
+    // once initialization has completed. HINT stays off until the menu arms it.
     writeRegister(0x00, 0x04); // full CRAM palette, HBlank IRQ disabled
     writeRegister(0x01, 0x14); // display disabled, DMA, Mode 5
     writeRegister(0x02, 0x30); // Plane A at 0xC000
@@ -77,6 +77,16 @@ void setHorizontalScroll(std::uint16_t planeA, std::uint16_t planeB) {
     setVramWrite(kHScrollTable);
     memory::write16(kDataPort, planeA);
     memory::write16(kDataPort, planeB);
+}
+
+void writePaletteColor(std::uint8_t palette,
+                       std::uint8_t color,
+                       std::uint16_t value) {
+    const auto address = static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(palette) * 32u +
+        static_cast<std::uint16_t>(color) * 2u);
+    setCramWrite(address);
+    memory::write16(kDataPort, value);
 }
 
 void loadPalette(std::uint8_t palette, const std::uint16_t (&colors)[16]) {

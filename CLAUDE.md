@@ -53,8 +53,9 @@ target uses `-PC` or `-MD`, such as `Memory-PC.cpp` and `Memory-MD.cpp`.
   unchanged between targets.
 - Drive shared frames from VBlank, but keep the IRQ6 callback short: it only
   schedules work that the target main loop consumes outside interrupt context.
-  The game keeps HBlank IRQ disabled; the PC `hSync()` override is an unused
-  adapter required by the host interface.
+  The menu may enable HBlank IRQ for a short backdrop-gradient update (one CRAM
+  colour per eight lines); disable HINT before entering any game. The PC
+  `hSync()` override forwards to the same `SampleGame::onHSync()` path.
 - Access runtime hardware only through the free functions in
   `sample::memory`. `Memory.hpp` is the single API; `Memory-PC.cpp` binds a host
   backend and `Memory-MD.cpp` accesses the 68000 bus.

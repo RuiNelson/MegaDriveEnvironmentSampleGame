@@ -37,7 +37,32 @@ constexpr std::uint16_t kFloorRomTile = 100;
 constexpr int kCookieBannerFirstRow = 7;
 constexpr int kCookieBannerLastRow = 20;
 constexpr const char *kBlankScreenRow = "                                        ";
+
+// Menu sky gradient: one CRAM update every eight scanlines (HINT reload = 7).
+// 28 bands × 8 lines = 224 visible NTSC lines. Games leave HINT disabled so the
+// Boing Ball rasterizer keeps its full visible-line budget.
+constexpr std::uint8_t kMenuGradientBandCount = 28;
+constexpr std::uint8_t kMenuHintReload = 7; // interrupt every (reload + 1) lines
+
 // CRAM words use the Mega Drive's 0000BBB0GGG0RRR0 channel layout.
+// Band 0 is pure blue (B=7); band 27 is white (R=G=B=7). Intermediate bands
+// raise red and green together so the sky stays in the blue family.
+consteval std::uint16_t menuGradientColor(unsigned band) {
+    constexpr unsigned kLastBand = kMenuGradientBandCount - 1u;
+    const unsigned t = (band * 7u) / kLastBand;
+    return static_cast<std::uint16_t>(0x0E00u | (t << 5) | (t << 1));
+}
+
+struct MenuGradientTable {
+    std::uint16_t colors[kMenuGradientBandCount]{};
+    consteval MenuGradientTable() {
+        for (unsigned band = 0; band < kMenuGradientBandCount; ++band) {
+            colors[band] = menuGradientColor(band);
+        }
+    }
+};
+inline constexpr MenuGradientTable kMenuGradient{};
+
 constexpr std::uint16_t kTextPalette[16]{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
@@ -55,6 +80,15 @@ constexpr std::uint16_t kFloorPalette[16]{
     0x0000, 0x0222, 0x000E, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
+/** Writes palette 0, color 0 (backdrop) with three fixed VDP port stores. */
+[[gnu::always_inline]] inline void writeBackdropColor(std::uint16_t color) {
+    // CRAM write address 0: control words are constant, so the HBlank path
+    // never recomputes command encoding.
+    memory::write16(vdp::kControlPort, 0xC000);
+    memory::write16(vdp::kControlPort, 0x0000);
+    memory::write16(vdp::kDataPort, color);
+}
+
 } // namespace
 
 SampleGame::SampleGame() : player1Controller_(controllers::Player::One) {
@@ -69,7 +103,34 @@ void SampleGame::initialize() {
 }
 
 void SampleGame::onVSync() {
+    if (screen_ == Screen::Menu) {
+        // Restart the gradient for the new frame. Band 0 covers lines 0-7;
+        // subsequent bands are applied by onHSync() every eight lines.
+        menuGradientBand_ = 1;
+        writeBackdropColor(kMenuGradient.colors[0]);
+        vdp::writeRegister(0x0A, kMenuHintReload);
+        vdp::writeRegister(0x00, 0x14); // full CRAM + HINT
+    }
     framePending_ = true;
+}
+
+void SampleGame::onHSync() {
+    // Games keep HINT disabled, so this body only runs on the menu. Keep every
+    // path branch-light: one load, three port writes, one increment, and at
+    // most one register write when the last band has been painted.
+    const auto band = menuGradientBand_;
+    if (band >= kMenuGradientBandCount) {
+        return;
+    }
+
+    writeBackdropColor(kMenuGradient.colors[band]);
+    const auto next = static_cast<std::uint8_t>(band + 1u);
+    menuGradientBand_ = next;
+    if (next >= kMenuGradientBandCount) {
+        // No further palette work this frame; free the rest of the active
+        // display for the main loop until the next VBlank re-arms HINT.
+        vdp::writeRegister(0x00, 0x04);
+    }
 }
 
 bool SampleGame::runPendingFrame() {
@@ -98,6 +159,8 @@ void SampleGame::initializeGraphics() {
 }
 
 void SampleGame::activateGameScreen() {
+    disableMenuHBlank();
+
     // Blank while patterns and planes change so the transfer is never visible.
     vdp::writeRegister(0x01, 0x14); // display off, DMA, Mode 5
 
@@ -125,6 +188,7 @@ void SampleGame::activateGameScreen() {
 }
 
 void SampleGame::returnToMenu() {
+    disableMenuHBlank();
     // Blank the display so the player never sees partial plane or tile cleanup.
     vdp::writeRegister(0x01, 0x14); // display off, DMA, Mode 5
     vdp::clearTiles(kFirstReusableTile, kReusableTileCount);
@@ -134,7 +198,7 @@ void SampleGame::returnToMenu() {
 }
 
 void SampleGame::activateMenu() {
-    vdp::writeRegister(0x07, 0x00);
+    vdp::writeRegister(0x07, 0x00); // backdrop = palette 0, color 0
     vdp::writeRegister(0x11, 0x00);
     vdp::writeRegister(0x12, 0x00);
     vdp::loadPalette(0, kTextPalette);
@@ -144,12 +208,27 @@ void SampleGame::activateMenu() {
     vdp::loadPalette(2, kBlackPalette);
     vdp::loadPalette(3, kBlackPalette);
 
+    // Blank tiles are transparent, so the HBlank-driven backdrop shows through.
     vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
     vdp::fillPlaneArea(vdp::kPlaneB, 0, 0, 40, 28, vdp::tileDescriptor(0));
     // Hide every sprite the games may have linked, including Boing Ball's shadow.
     for (int i = 0; i < 20; ++i) {
         vdp::writeSprite(i, -32, -32, 1, 1, 0, 0, 0);
     }
+
+    enableMenuHBlank();
+}
+
+void SampleGame::disableMenuHBlank() {
+    vdp::writeRegister(0x00, 0x04); // full CRAM, HINT off
+    menuGradientBand_ = 1;
+}
+
+void SampleGame::enableMenuHBlank() {
+    menuGradientBand_ = 1;
+    writeBackdropColor(kMenuGradient.colors[0]);
+    vdp::writeRegister(0x0A, kMenuHintReload);
+    vdp::writeRegister(0x00, 0x14); // full CRAM + HINT
 }
 
 void SampleGame::update() {
@@ -192,6 +271,8 @@ void SampleGame::update() {
 
     if (screen_ == Screen::Menu) {
         if (aPressed) {
+            // Drop HINT before any game owns the VDP or spends visible-line CPU.
+            disableMenuHBlank();
             if (menuSelection_ == 0) {
                 screen_ = Screen::Game;
                 activateGameScreen();

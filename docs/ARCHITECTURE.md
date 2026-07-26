@@ -37,15 +37,20 @@ cleared (leaving the font glyphs) when returning to the menu.
 During execution:
 
 1. VBlank sets a pending-frame flag and immediately returns from IRQ6.
-2. The target main loop consumes that flag, samples input and advances the model.
-3. One-frame events select sound effects.
-4. The active screen writes bounded planes, sprites or VBlank DMA state.
-5. The Boing Ball renderer uses visible-line CPU time for bounded raster work.
+2. On the menu only, VBlank also restarts the blue→white backdrop gradient and
+   re-enables HINT; each HBlank then rewrites palette 0 colour 0 for the next
+   eight-line band (about 27 IRQs per frame) and disables HINT after the last.
+3. The target main loop consumes the VBlank flag, samples input and advances
+   the model.
+4. One-frame events select sound effects.
+5. The active screen writes bounded planes, sprites or VBlank DMA state.
+6. The Boing Ball renderer uses visible-line CPU time for bounded raster work.
 
-The game leaves the VDP HBlank interrupt disabled. The PC application and real
-hardware IRQ6 both schedule the same `SampleGame` frame method, so there is no
-second game loop or renderer. Keeping the long work outside IRQ6 is essential:
-the Boing Ball rasterizer may intentionally run until NTSC line 192.
+Games keep the VDP HBlank interrupt disabled so their visible-line budgets are
+not stolen by raster IRQs. The PC application and real hardware both schedule
+the same `SampleGame` frame method from VBlank, so there is no second game loop
+or renderer. Keeping the long work outside IRQ6 is essential: the Boing Ball
+rasterizer may intentionally run until NTSC line 192.
 
 ## Main components
 

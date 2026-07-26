@@ -13,7 +13,7 @@
  * | Process entry      | `main(argc, argv)`              | `game_main()` via `header.s`    |
  * | Memory backend     | `memory::bind(SystemMemory)`    | Direct 68000 bus (`Memory-MD`)  |
  * | VBlank callback    | `EnvironmentApplication::vSync` | `game_vsync` → IRQ6             |
- * | HBlank callback    | Disabled by the game VDP setup  | Disabled by the game VDP setup  |
+ * | HBlank callback    | `hSync` → `onHSync` (menu only) | `game_hsync` → IRQ4 (menu only) |
  * | Main loop          | `run()` + `runVDPInterrupts()`  | `wait_for_interrupt()` STOP loop|
  *
  * All gameplay, input protocol, audio sequencing and VDP rendering remain in
@@ -72,7 +72,7 @@ namespace {
  *
  * - `run()`     — load assets, initialize the game, pump IRQs and run pending frames;
  * - `vSync()`   — schedule one shared game tick per emulated VBlank;
- * - `hSync()`   — deliberately empty because game HBlank IRQs are disabled.
+ * - `hSync()`   — menu backdrop gradient while HINT is enabled (mirrors IRQ4).
  *
  * Actual game rules, rendering and hardware protocols stay inside
  * `sample::SampleGame`; this class must not reimplement them.
@@ -146,8 +146,15 @@ class EnvironmentApplication final : public MegaDriveEnvironment {
         frameLimitReached_ = frameLimit_ != 0 && frameCount_ >= frameLimit_;
     }
 
-    /** Unused: the game keeps the VDP HBlank interrupt disabled. */
+    /**
+     * @brief Emulated HBlank hook for the menu backdrop gradient.
+     *
+     * The environment reports the scanline that raised HINT, but the shared
+     * game ignores it and advances its own band counter so PC and real
+     * hardware stay identical (hardware HINT has no line payload).
+     */
     void hSync(int /*scanline*/) override {
+        game_.onHSync();
     }
 
     /** Filesystem path of the raw asset ROM passed to `loadROM`. */

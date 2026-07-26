@@ -16,8 +16,9 @@ persistent state, scratch buffers and any allocator share that region.
 - `$FF1000-$FF2FFF`: Boing Ball tile/DMA buffer;
 - stack starts at `$FFFFFC` and grows downwards.
 
-`SampleGame` keeps only a pending-frame flag for the IRQ6/main-loop handoff.
-The game does not enable the VDP HBlank interrupt.
+`SampleGame` keeps a pending-frame flag for the IRQ6/main-loop handoff and a
+menu gradient band counter shared with IRQ4. HBlank IRQs are enabled only while
+the menu screen is active; games leave HINT disabled.
 
 Future layouts must preserve these ranges or relocate them deliberately in all
 code, tests and documentation. There is no guard page between a descending

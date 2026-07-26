@@ -50,6 +50,18 @@ void finishInitialization();
 void setHorizontalScroll(std::uint16_t planeA, std::uint16_t planeB);
 
 /**
+ * Replaces one CRAM entry. Intended for short HBlank raster updates (for
+ * example the menu backdrop gradient) as well as ordinary palette tweaks.
+ *
+ * @param palette Palette number in the range 0..3.
+ * @param color Color index in the range 0..15.
+ * @param value Mega Drive CRAM word in `0000BBB0GGG0RRR0` format.
+ */
+void writePaletteColor(std::uint8_t palette,
+                       std::uint8_t color,
+                       std::uint16_t value);
+
+/**
  * Loads all 16 colors of a hardware palette.
  *
  * @param palette Palette number in the range 0..3.

@@ -10,8 +10,9 @@
  * 1. `megadrive/header.s` owns the vector table, Sega cartridge header, TMSS
  *    unlock, exception/IRQ stubs and the `wait_for_interrupt` STOP helper.
  * 2. After reset, the assembler jumps to `game_main()` defined here.
- * 3. IRQ6 (VBlank) calls `game_vsync()` to schedule a shared frame. The VDP's
- *    HBlank interrupt remains disabled for the game.
+ * 3. IRQ6 (VBlank) calls `game_vsync()` to schedule a shared frame.
+ * 4. IRQ4 (HBlank) calls `game_hsync()` only while the menu enables HINT for
+ *    its backdrop gradient; games keep the HBlank interrupt disabled.
  *
  * There is deliberately no second game loop or renderer: shared gameplay,
  * input, audio and VDP code live in `sample::SampleGame`; the short VBlank
@@ -120,6 +121,17 @@ extern "C" void wait_for_interrupt();
  */
 extern "C" void game_vsync() {
     activeGame().onVSync();
+}
+
+/**
+ * @brief HBlank (IRQ4) C entry point called from `irq_level_4` in header.s.
+ *
+ * Forwards into `SampleGame::onHSync()`. The hardware interrupt does not carry
+ * a scanline index; the menu tracks its gradient band counter internally.
+ * Games leave HINT disabled so this path is idle during gameplay.
+ */
+extern "C" void game_hsync() {
+    activeGame().onHSync();
 }
 
 /**

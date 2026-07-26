@@ -28,8 +28,18 @@ class SampleGame final {
     /** Configures the controller, PSG, Z80 FM demo driver, VDP and initial scene. */
     void initialize();
 
-    /** Records that a new video frame began; safe to call directly from IRQ6. */
+    /**
+     * Records that a new video frame began; safe to call directly from IRQ6.
+     * On the menu, also restarts the backdrop gradient for the new frame.
+     */
     void onVSync();
+
+    /**
+     * Menu-only HBlank work: advances one band of the blue→white backdrop
+     * gradient. Must stay extremely short; games keep HINT disabled so this is
+     * never on the hot path during gameplay or the Boing Ball rasterizer.
+     */
+    void onHSync();
 
     /**
      * Runs one pending frame outside interrupt context.
@@ -65,8 +75,14 @@ class SampleGame final {
     /** Writes the current model state to Plane A and the sprite table. */
     void render();
 
-    /** Sets up the menu palettes, clears planes and writes menu text. */
+    /** Sets up the menu palettes, clears planes and enables the sky gradient. */
     void activateMenu();
+
+    /** Turns off HBlank IRQs before a game takes ownership of the VDP. */
+    void disableMenuHBlank();
+
+    /** Arms the eight-line backdrop gradient for the menu screen. */
+    void enableMenuHBlank();
 
     /** Draws the menu title, game list and selection cursor. */
     void renderMenu();
@@ -89,6 +105,12 @@ class SampleGame final {
     demo::BoingBallDemo boingBallDemo_;
     /** Set by IRQ6 and consumed before normal frame work begins. */
     volatile bool framePending_ = false;
+    /**
+     * Next gradient band written by onHSync(). Reset to 1 on each menu VBlank;
+     * band 0 is applied during VBlank so the first eight lines already match.
+     * Volatile because IRQ4 and the main loop both touch it.
+     */
+    volatile std::uint8_t menuGradientBand_ = 1;
     /** Keeps gameplay paused until the player accepts the satirical notice. */
     bool cookieConsentAccepted_ = false;
     /** Prevents the acceptance press from also resetting the game. */

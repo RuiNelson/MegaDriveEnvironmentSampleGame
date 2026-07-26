@@ -58,7 +58,7 @@ in the ignored `controls.yaml` file.
 
 - one allocation-free game core compiled for PC and M68000;
 - short VBlank scheduling shared by emulation and real hardware, with game
-  work outside IRQ context and HBlank IRQ disabled;
+  work outside IRQ context; menu-only HBlank backdrop gradient;
 - VDP palettes, planes, text, sprites, DMA and raster effects;
 - memory-mapped three-button controller input;
 - SN76489 effects and a Z80/YM2612 DAC sample driver;
