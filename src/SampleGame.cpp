@@ -326,8 +326,17 @@ void SampleGame::render() {
     }
 
     if (cookieBannerNeedsClear_) {
+        // The banner clear touches a complete name-table rectangle. Keep the
+        // display blank while it runs so real VDP FIFO/timing cannot expose a
+        // partially updated menu during the transition.
+        disableMenuHBlank();
+        vdp::writeRegister(0x01, 0x14); // display off, DMA, Mode 5
         clearCookieBanner();
+        renderMenu();
         cookieBannerNeedsClear_ = false;
+        enableMenuHBlank();
+        vdp::writeRegister(0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
+        return;
     }
 
     if (screen_ == Screen::Menu) {
