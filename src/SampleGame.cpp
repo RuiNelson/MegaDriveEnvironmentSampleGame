@@ -37,30 +37,25 @@ constexpr std::uint16_t kFloorRomTile = 100;
 constexpr int kCookieBannerFirstRow = 7;
 constexpr int kCookieBannerLastRow = 20;
 
-// Menu sky gradient: one CRAM update every eight scanlines (HINT reload = 7).
-// 28 bands × 8 lines = 224 visible NTSC lines. Games leave HINT disabled so the
-// Boing Ball rasterizer keeps its full visible-line budget.
-constexpr std::uint8_t kMenuGradientBandCount = 28;
-constexpr std::uint8_t kMenuHintReload = 7; // interrupt every (reload + 1) lines
+// Menu sky gradient: one CRAM update per visible scanline. The Mega Drive has
+// seven non-zero blue intensities (B=1..7); keeping R and G at zero avoids the
+// old ramp ending in white. The gradient scrolls vertically by one line per
+// frame, wrapping at the bottom.
+constexpr std::uint16_t kMenuVisibleLineCount = 224;
+constexpr std::uint16_t kMenuGradientLevelCount = 7;
+constexpr std::uint8_t kMenuHintReload = 0; // interrupt every scanline
+static_assert(kMenuVisibleLineCount == kMenuGradientLevelCount * 32);
 
 // CRAM words use the Mega Drive's 0000BBB0GGG0RRR0 channel layout.
-// Band 0 is pure blue (B=7); band 27 is white (R=G=B=7). Intermediate bands
-// raise red and green together so the sky stays in the blue family.
-consteval std::uint16_t menuGradientColor(unsigned band) {
-    constexpr unsigned kLastBand = kMenuGradientBandCount - 1u;
-    const unsigned t = (band * 7u) / kLastBand;
-    return static_cast<std::uint16_t>(0x0E00u | (t << 5) | (t << 1));
-}
-
-struct MenuGradientTable {
-    std::uint16_t colors[kMenuGradientBandCount]{};
-    consteval MenuGradientTable() {
-        for (unsigned band = 0; band < kMenuGradientBandCount; ++band) {
-            colors[band] = menuGradientColor(band);
-        }
+constexpr std::uint16_t menuGradientColor(unsigned line, unsigned offset) {
+    unsigned position = line + offset;
+    if (position >= kMenuVisibleLineCount) {
+        position -= kMenuVisibleLineCount;
     }
-};
-inline constexpr MenuGradientTable kMenuGradient{};
+    // 224 visible lines / 7 levels = 32 lines per level.
+    const unsigned level = position >> 5;
+    return static_cast<std::uint16_t>((level + 1u) << 9);
+}
 
 constexpr std::uint16_t kTextPalette[16]{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -107,10 +102,15 @@ void SampleGame::initialize() {
 
 void SampleGame::onVSync() {
     if (screen_ == Screen::Menu) {
-        // Restart the gradient for the new frame. Band 0 covers lines 0-7;
-        // subsequent bands are applied by onHSync() every eight lines.
-        menuGradientBand_ = 1;
-        writeBackdropColor(kMenuGradient.colors[0]);
+        // Restart at the first scanline and advance the vertical animation.
+        menuGradientLine_ = 1;
+        const auto nextOffset = static_cast<std::uint16_t>(menuGradientOffset_ + 1u);
+        if (nextOffset >= kMenuVisibleLineCount) {
+            menuGradientOffset_ = 0;
+        } else {
+            menuGradientOffset_ = nextOffset;
+        }
+        writeBackdropColor(menuGradientColor(0, menuGradientOffset_));
         vdp::writeRegister(0x0A, kMenuHintReload);
         vdp::writeRegister(0x00, 0x14); // full CRAM + HINT
     }
@@ -119,17 +119,17 @@ void SampleGame::onVSync() {
 
 void SampleGame::onHSync() {
     // Games keep HINT disabled, so this body only runs on the menu. Keep every
-    // path branch-light: one load, three port writes, one increment, and at
-    // most one register write when the last band has been painted.
-    const auto band = menuGradientBand_;
-    if (band >= kMenuGradientBandCount) {
+    // path branch-light: one color calculation, three port writes, one
+    // increment, and one register write at the end of the visible area.
+    const auto line = menuGradientLine_;
+    if (line >= kMenuVisibleLineCount) {
         return;
     }
 
-    writeBackdropColor(kMenuGradient.colors[band]);
-    const auto next = static_cast<std::uint8_t>(band + 1u);
-    menuGradientBand_ = next;
-    if (next >= kMenuGradientBandCount) {
+    writeBackdropColor(menuGradientColor(line, menuGradientOffset_));
+    const auto next = static_cast<std::uint16_t>(line + 1u);
+    menuGradientLine_ = next;
+    if (next >= kMenuVisibleLineCount) {
         // No further palette work this frame; free the rest of the active
         // display for the main loop until the next VBlank re-arms HINT.
         vdp::writeRegister(0x00, 0x04);
@@ -224,12 +224,12 @@ void SampleGame::activateMenu() {
 
 void SampleGame::disableMenuHBlank() {
     vdp::writeRegister(0x00, 0x04); // full CRAM, HINT off
-    menuGradientBand_ = 1;
+    menuGradientLine_ = 1;
 }
 
 void SampleGame::enableMenuHBlank() {
-    menuGradientBand_ = 1;
-    writeBackdropColor(kMenuGradient.colors[0]);
+    menuGradientLine_ = 1;
+    writeBackdropColor(menuGradientColor(0, menuGradientOffset_));
     vdp::writeRegister(0x0A, kMenuHintReload);
     vdp::writeRegister(0x00, 0x14); // full CRAM + HINT
 }

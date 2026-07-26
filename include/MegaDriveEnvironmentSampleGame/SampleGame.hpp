@@ -30,14 +30,15 @@ class SampleGame final {
 
     /**
      * Records that a new video frame began; safe to call directly from IRQ6.
-     * On the menu, also restarts the backdrop gradient for the new frame.
+     * On the menu, also advances the vertically animated backdrop gradient.
      */
     void onVSync();
 
     /**
-     * Menu-only HBlank work: advances one band of the blue→white backdrop
-     * gradient. Must stay extremely short; games keep HINT disabled so this is
-     * never on the hot path during gameplay or the Boing Ball rasterizer.
+     * Menu-only HBlank work: advances one scanline of the seven-level blue
+     * backdrop gradient. Must stay extremely short; games keep HINT disabled
+     * so this is never on the hot path during gameplay or the Boing Ball
+     * rasterizer.
      */
     void onHSync();
 
@@ -106,11 +107,13 @@ class SampleGame final {
     /** Set by IRQ6 and consumed before normal frame work begins. */
     volatile bool framePending_ = false;
     /**
-     * Next gradient band written by onHSync(). Reset to 1 on each menu VBlank;
-     * band 0 is applied during VBlank so the first eight lines already match.
-     * Volatile because IRQ4 and the main loop both touch it.
+     * Next gradient scanline written by onHSync(). Reset to 1 on each menu
+     * VBlank; line 0 is applied during VBlank. Volatile because IRQ4 and the
+     * main loop both touch it.
      */
-    volatile std::uint8_t menuGradientBand_ = 1;
+    volatile std::uint16_t menuGradientLine_ = 1;
+    /** Vertical animation offset, advanced once per menu frame. */
+    volatile std::uint16_t menuGradientOffset_ = 0;
     /** Keeps gameplay paused until the player accepts the satirical notice. */
     bool cookieConsentAccepted_ = false;
     /** Prevents the acceptance press from also resetting the game. */
