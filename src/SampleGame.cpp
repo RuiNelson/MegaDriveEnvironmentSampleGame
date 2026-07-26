@@ -66,6 +66,10 @@ inline constexpr MenuGradientTable kMenuGradient{};
 constexpr std::uint16_t kTextPalette[16]{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
+// Palette 0 is reserved for the menu backdrop, whose color 0 is changed by
+// the HBlank gradient. Keep menu and consent text in a separate palette so
+// raster updates can never affect its colour.
+constexpr std::uint8_t kMenuTextPalette = 1;
 // Explicit zeros keep freestanding builds from emitting memset.
 constexpr std::uint16_t kBlackPalette[16]{
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -201,10 +205,10 @@ void SampleGame::activateMenu() {
     vdp::writeRegister(0x07, 0x00); // backdrop = palette 0, color 0
     vdp::writeRegister(0x11, 0x00);
     vdp::writeRegister(0x12, 0x00);
-    vdp::loadPalette(0, kTextPalette);
-    // Menu text uses palette 0 only; keep the other slots black so leftover
-    // game colours cannot flash if a plane cell is briefly wrong.
-    vdp::loadPalette(1, kBlackPalette);
+    vdp::loadPalette(0, kBlackPalette);
+    // Palette 0 is reserved for the HBlank-driven backdrop. Keep menu text in
+    // palette 1 so the gradient cannot change its colour.
+    vdp::loadPalette(kMenuTextPalette, kTextPalette);
     vdp::loadPalette(2, kBlackPalette);
     vdp::loadPalette(3, kBlackPalette);
 
@@ -373,33 +377,33 @@ void SampleGame::render() {
 }
 
 void SampleGame::renderMenu() {
-    vdp::writeText(vdp::kPlaneA, 12, 8, "SELECT A GAME", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 12, 8, "SELECT A GAME", kFontTile, kMenuTextPalette);
 
     const char *gemCursor = (menuSelection_ == 0) ? ">" : " ";
     const char *boingCursor = (menuSelection_ == 1) ? ">" : " ";
-    vdp::writeText(vdp::kPlaneA, 11, 12, gemCursor, kFontTile);
-    vdp::writeText(vdp::kPlaneA, 13, 12, "GEM COLLECTING", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 11, 14, boingCursor, kFontTile);
-    vdp::writeText(vdp::kPlaneA, 13, 14, "BOING BALL", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 11, 12, gemCursor, kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 13, 12, "GEM COLLECTING", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 11, 14, boingCursor, kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 13, 14, "BOING BALL", kFontTile, kMenuTextPalette);
 
-    vdp::writeText(vdp::kPlaneA, 7, 20, "UP/DOWN SELECT   A START", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 7, 20, "UP/DOWN SELECT   A START", kFontTile, kMenuTextPalette);
 }
 
 void SampleGame::renderCookieBanner() {
-    vdp::writeText(vdp::kPlaneA, 1, 7, "+------------------------------------+", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 8, "|        COOKIE CONSENT              |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 9, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 10, "| THIS GAME WAS MADE IN THE          |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 11, "| EUROPEAN UNION.                    |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 12, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 13, "| WE USE ESSENTIAL COOKIES TO        |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 14, "| REMEMBER YOUR HIGH SCORE.          |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 15, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 16, "| [A] ACCEPT ALL                     |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 17, "| [START] ALSO ACCEPT ALL            |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 18, "|                                    |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 19, "| *YOUR CHOICE IS VERY IMPORTANT     |", kFontTile);
-    vdp::writeText(vdp::kPlaneA, 1, 20, "+------------------------------------+", kFontTile);
+    vdp::writeText(vdp::kPlaneA, 1, 7, "+------------------------------------+", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 8, "|        COOKIE CONSENT              |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 9, "|                                    |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 10, "| THIS GAME WAS MADE IN THE          |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 11, "| EUROPEAN UNION.                    |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 12, "|                                    |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 13, "| WE USE ESSENTIAL COOKIES TO        |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 14, "| REMEMBER YOUR HIGH SCORE.          |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 15, "|                                    |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 16, "| [A] ACCEPT ALL                     |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 17, "| [START] ALSO ACCEPT ALL            |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 18, "|                                    |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 19, "| *YOUR CHOICE IS VERY IMPORTANT     |", kFontTile, kMenuTextPalette);
+    vdp::writeText(vdp::kPlaneA, 1, 20, "+------------------------------------+", kFontTile, kMenuTextPalette);
 
     // An empty sprite list keeps the world hidden while consent blocks play.
     vdp::writeSprite(0, -32, -32, 1, 1, 0, 0, 0);
@@ -407,7 +411,7 @@ void SampleGame::renderCookieBanner() {
 
 void SampleGame::clearCookieBanner() {
     for (int row = kCookieBannerFirstRow; row <= kCookieBannerLastRow; ++row) {
-        vdp::writeText(vdp::kPlaneA, 0, row, kBlankScreenRow, kFontTile);
+        vdp::writeText(vdp::kPlaneA, 0, row, kBlankScreenRow, kFontTile, kMenuTextPalette);
     }
 }
 
