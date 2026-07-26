@@ -123,11 +123,14 @@ int main() {
     demo.initialize();
     assert(demo.refreshRate() == 60);
     assert(demo.displayedFps() == 0);
+    // Background patterns are deferred until activate() so the menu never
+    // occupies game-only VRAM tiles.
+    assert(ntscMemory.bufferWordWrites == 0);
+
+    demo.activate();
     // Nine wall tiles and 320 perspective-floor tiles are generated in
     // software before being uploaded; no pre-authored graphics are sampled.
     assert(ntscMemory.bufferWordWrites == (9 + 320) * 16);
-
-    demo.activate();
     assert(demo.ballX() == 8);
     assert(demo.ballY() == 80);
     assert(demo.ballSize() == 96);

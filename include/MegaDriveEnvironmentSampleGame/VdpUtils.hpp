@@ -68,6 +68,14 @@ void loadTilesFromRom(std::uint32_t romAddress,
                       std::uint16_t tileCount);
 
 /**
+ * Zeroes a contiguous run of pattern tiles in VRAM.
+ *
+ * Use this when leaving a screen that uploaded game-specific tiles. Font glyph
+ * tiles and name tables outside the pattern range are left untouched.
+ */
+void clearTiles(std::uint16_t firstVramTile, std::uint16_t tileCount);
+
+/**
  * Copies an even Work RAM block to VRAM with the VDP's 68000-bus DMA mode.
  * `wordCount` is the number of 16-bit words and must not be zero.
  */

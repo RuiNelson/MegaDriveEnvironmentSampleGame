@@ -14,13 +14,22 @@ namespace {
 
 // Tile zero remains blank. The asset ROM stores tiles densely from zero, while
 // VRAM starts them at one, so the following ROM and VRAM indices differ by one.
+// Font glyphs stay resident across the menu and every game; other pattern tiles
+// are loaded on enter and wiped on exit.
 constexpr std::uint16_t kFontTile = 1;
+constexpr std::uint16_t kFontTileCount = 95;
+constexpr std::uint16_t kFirstReusableTile = kFontTile + kFontTileCount;
+// Pattern data ends at the Window plane base (0xB000). Clearing this span
+// removes game tiles without touching name tables or the SAT.
+constexpr std::uint16_t kPatternTileLimit = vdp::kWindowPlane / 32;
+constexpr std::uint16_t kReusableTileCount =
+    static_cast<std::uint16_t>(kPatternTileLimit - kFirstReusableTile);
+
 constexpr std::uint16_t kPlayerTile = 96;
 constexpr std::uint16_t kGemTile = 100;
 constexpr std::uint16_t kFloorTile = 101;
 constexpr std::uint16_t kEnemyTile = kPlayerTile;
 
-constexpr std::uint16_t kFontTileCount = 95;
 constexpr std::uint16_t kPlayerRomTile = 95;
 constexpr std::uint16_t kGemRomTile = 99;
 constexpr std::uint16_t kFloorRomTile = 100;
@@ -31,6 +40,10 @@ constexpr const char *kBlankScreenRow = "                                       
 // CRAM words use the Mega Drive's 0000BBB0GGG0RRR0 channel layout.
 constexpr std::uint16_t kTextPalette[16]{
     0x0000, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+// Explicit zeros keep freestanding builds from emitting memset.
+constexpr std::uint16_t kBlackPalette[16]{
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 constexpr std::uint16_t kPlayerPalette[16]{
     0x0000, 0x0008, 0x00EE, 0x0EEE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -75,18 +88,25 @@ void SampleGame::initializeGraphics() {
     vdp::initialize();
     boingBallDemo_.initialize();
 
-    // Copy only the required spans even though all assets share one ROM blob.
+    // Only the font glyphs are shared by the menu and every game. Game-specific
+    // pattern tiles are uploaded when a screen is activated.
     const auto tileRom = static_cast<memory::Address>(assets::kTilesOffset);
     vdp::loadTilesFromRom(tileRom, kFontTile, kFontTileCount);
-    vdp::loadTilesFromRom(tileRom + kPlayerRomTile * 32, kPlayerTile, 4);
-    vdp::loadTilesFromRom(tileRom + kGemRomTile * 32, kGemTile, 1);
-    vdp::loadTilesFromRom(tileRom + kFloorRomTile * 32, kFloorTile, 1);
 
     activateMenu();
     vdp::finishInitialization();
 }
 
 void SampleGame::activateGameScreen() {
+    // Blank while patterns and planes change so the transfer is never visible.
+    vdp::writeRegister(0x01, 0x14); // display off, DMA, Mode 5
+
+    // Player, gem and floor patterns live only for this screen.
+    const auto tileRom = static_cast<memory::Address>(assets::kTilesOffset);
+    vdp::loadTilesFromRom(tileRom + kPlayerRomTile * 32, kPlayerTile, 4);
+    vdp::loadTilesFromRom(tileRom + kGemRomTile * 32, kGemTile, 1);
+    vdp::loadTilesFromRom(tileRom + kFloorRomTile * 32, kFloorTile, 1);
+
     vdp::writeRegister(0x07, 0x00);
     vdp::writeRegister(0x11, 0x00);
     vdp::writeRegister(0x12, 0x00); // disable the demo's bottom Window plane
@@ -100,6 +120,17 @@ void SampleGame::activateGameScreen() {
                        vdp::tileDescriptor(kFloorTile, 3));
     vdp::writeText(vdp::kPlaneA, 2, 1, "MEGADRIVE ENVIRONMENT SAMPLE", kFontTile);
     vdp::writeText(vdp::kPlaneA, 2, 26, "D-PAD MOVE   A RESET   START MENU", kFontTile);
+
+    vdp::writeRegister(0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
+}
+
+void SampleGame::returnToMenu() {
+    // Blank the display so the player never sees partial plane or tile cleanup.
+    vdp::writeRegister(0x01, 0x14); // display off, DMA, Mode 5
+    vdp::clearTiles(kFirstReusableTile, kReusableTileCount);
+    screen_ = Screen::Menu;
+    activateMenu();
+    vdp::writeRegister(0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
 }
 
 void SampleGame::activateMenu() {
@@ -107,14 +138,16 @@ void SampleGame::activateMenu() {
     vdp::writeRegister(0x11, 0x00);
     vdp::writeRegister(0x12, 0x00);
     vdp::loadPalette(0, kTextPalette);
-    vdp::loadPalette(1, kPlayerPalette);
-    vdp::loadPalette(2, kGemPalette);
-    vdp::loadPalette(3, kFloorPalette);
+    // Menu text uses palette 0 only; keep the other slots black so leftover
+    // game colours cannot flash if a plane cell is briefly wrong.
+    vdp::loadPalette(1, kBlackPalette);
+    vdp::loadPalette(2, kBlackPalette);
+    vdp::loadPalette(3, kBlackPalette);
 
     vdp::fillPlaneArea(vdp::kPlaneA, 0, 0, 40, 28, vdp::tileDescriptor(0));
     vdp::fillPlaneArea(vdp::kPlaneB, 0, 0, 40, 28, vdp::tileDescriptor(0));
-    // Hide all sprites while on the menu.
-    for (int i = 0; i < 3; ++i) {
+    // Hide every sprite the games may have linked, including Boing Ball's shadow.
+    for (int i = 0; i < 20; ++i) {
         vdp::writeSprite(i, -32, -32, 1, 1, 0, 0, 0);
     }
 }
@@ -172,8 +205,7 @@ void SampleGame::update() {
 
     if (screen_ == Screen::BoingBall) {
         if (startPressed) {
-            screen_ = Screen::Menu;
-            activateMenu();
+            returnToMenu();
             return;
         }
         const auto events = boingBallDemo_.update(controls.up, controls.down);
@@ -186,8 +218,7 @@ void SampleGame::update() {
     }
 
     if (startPressed) {
-        screen_ = Screen::Menu;
-        activateMenu();
+        returnToMenu();
         return;
     }
 

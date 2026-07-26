@@ -214,10 +214,15 @@ constexpr std::uint16_t kBackdropPalette[16]{
 
 void BoingBallDemo::initialize() {
     refreshRate_ = (memory::read8(kHardwareVersionRegister) & kPalVideoBit) != 0 ? 50 : 60;
-    uploadBackgroundTiles();
 }
 
 void BoingBallDemo::activate() {
+    // Blank while patterns and planes change so the transfer is never visible.
+    vdp::writeRegister(0x01, 0x14); // display off, DMA, Mode 5
+
+    // Background patterns are generated only while this demo is active.
+    uploadBackgroundTiles();
+
     ballSize_ = kDefaultZoomSize;
     ballXFixed_ = kLeftEdge * kFixedOne;
     ballYFixed_ = 80 * kFixedOne;
@@ -271,6 +276,7 @@ void BoingBallDemo::activate() {
     vdp::writeRegister(0x12, static_cast<std::uint8_t>(0x80 | kFloorFirstRow));
 
     renderFps();
+    vdp::writeRegister(0x01, 0x74); // display, DMA, Mode 5, VBlank IRQ
 }
 
 BounceEvents BoingBallDemo::update(bool zoomIn, bool zoomOut) {

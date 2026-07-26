@@ -31,10 +31,13 @@ class BoingBallDemo final {
   public:
     BoingBallDemo() = default;
 
-    /** Detects 50/60 Hz and uploads the software-generated background patterns. */
+    /** Detects 50/60 Hz. Background tiles load later in activate(). */
     void initialize();
 
-    /** Resets motion and installs the demo palettes, background, text and shadow. */
+    /**
+     * Uploads background tiles, resets motion and installs the demo palettes,
+     * planes, text and shadow.
+     */
     void activate();
 
     /** Advances motion/rotation/FPS, zoom input and collision events. */

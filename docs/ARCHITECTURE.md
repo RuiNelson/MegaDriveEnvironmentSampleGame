@@ -29,8 +29,10 @@ CMake and `tools/build_megadrive_rom.py` both read it. Adding a new unsuffixed
 
 ## Frame flow
 
-Initialization configures the controller and audio drivers, generates the demo
-background, loads tiles from ROM, prepares planes and finally enables display.
+Initialization configures the controller and audio drivers, loads the shared
+font tiles from ROM, prepares the menu planes and finally enables display.
+Game-specific pattern tiles are uploaded only when a screen is entered and are
+cleared (leaving the font glyphs) when returning to the menu.
 
 During execution:
 

@@ -47,11 +47,17 @@ class SampleGame final {
         BoingBall,
     };
 
-    /** Configures palettes, tile data, planes and static HUD text. */
+    /** Configures the VDP, loads persistent font tiles and shows the menu. */
     void initializeGraphics();
 
-    /** Restores gameplay palettes, visible Plane A cells and static labels. */
+    /** Loads game tiles and restores gameplay palettes, planes and HUD text. */
     void activateGameScreen();
+
+    /**
+     * Darkens the display, clears non-font pattern tiles and returns to the
+     * menu. Font glyphs remain resident in VRAM across screen transitions.
+     */
+    void returnToMenu();
 
     /** Samples input, advances gameplay/audio and handles one-frame events. */
     void update();

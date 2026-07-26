@@ -97,6 +97,14 @@ void loadTilesFromRom(std::uint32_t romAddress,
     }
 }
 
+void clearTiles(std::uint16_t firstVramTile, std::uint16_t tileCount) {
+    setVramWrite(static_cast<std::uint16_t>(firstVramTile * 32));
+    const auto wordCount = static_cast<std::uint32_t>(tileCount) * 16;
+    for (std::uint32_t word = 0; word < wordCount; ++word) {
+        memory::write16(kDataPort, 0);
+    }
+}
+
 void dmaToVram(memory::Address sourceAddress,
                std::uint16_t destinationAddress,
                std::uint16_t wordCount) {
