@@ -36,7 +36,6 @@ constexpr std::uint16_t kFloorRomTile = 100;
 
 constexpr int kCookieBannerFirstRow = 7;
 constexpr int kCookieBannerLastRow = 20;
-constexpr const char *kBlankScreenRow = "                                        ";
 
 // Menu sky gradient: one CRAM update every eight scanlines (HINT reload = 7).
 // 28 bands × 8 lines = 224 visible NTSC lines. Games leave HINT disabled so the
@@ -410,9 +409,15 @@ void SampleGame::renderCookieBanner() {
 }
 
 void SampleGame::clearCookieBanner() {
-    for (int row = kCookieBannerFirstRow; row <= kCookieBannerLastRow; ++row) {
-        vdp::writeText(vdp::kPlaneA, 0, row, kBlankScreenRow, kFontTile, kMenuTextPalette);
-    }
+    // Clear the name-table cells directly. Writing space glyphs leaves the
+    // font tile and its attributes in place, which can expose stale banner
+    // pixels while the next screen is being drawn.
+    vdp::fillPlaneArea(vdp::kPlaneA,
+                       0,
+                       kCookieBannerFirstRow,
+                       vdp::kPlaneWidth,
+                       kCookieBannerLastRow - kCookieBannerFirstRow + 1,
+                       vdp::tileDescriptor(0));
 }
 
 } // namespace sample
